@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { TODAY, nowIso } from "@/lib/constants";
+import { READ_ONLY_MESSAGE, isDemoMode } from "@/lib/data-mode";
 import { mutate, newId, readDb } from "@/lib/db";
 import {
   isHttpUrl,
@@ -12,13 +13,17 @@ import {
 } from "@/lib/validate";
 
 type Errors<K extends string> = Partial<Record<K, string>>;
-export type ActionResult<K extends string> = { ok: true } | { ok: false; errors: Errors<K> };
+export type ActionResult<K extends string> = { ok: true } | { ok: false; errors: Errors<K>; message?: string };
+
+/** 데모 모드(읽기 전용)에서 쓰기 요청에 돌려주는 결과 */
+const readOnlyResult = { ok: false as const, errors: {}, message: READ_ONLY_MESSAGE };
 
 /* ---------------- 아티스트 제보 ---------------- */
 
 export type ArtistReportInput = { name: string; spotify: string; melon: string; youtube: string; apple: string };
 
 export async function submitArtistReport(v: ArtistReportInput): Promise<ActionResult<keyof ArtistReportInput>> {
+  if (isDemoMode()) return readOnlyResult;
   const db = readDb();
   const err: Errors<keyof ArtistReportInput> = {};
   const name = v.name.trim();
@@ -74,6 +79,7 @@ export type ConcertReportInput = {
 const norm = (s: string) => s.replace(/\s/g, "").toLowerCase();
 
 export async function submitConcertReport(v: ConcertReportInput): Promise<ActionResult<keyof ConcertReportInput>> {
+  if (isDemoMode()) return readOnlyResult;
   const db = readDb();
   const err: Errors<keyof ConcertReportInput> = {};
   if (!v.artistId || !db.artists.some((a) => a.id === v.artistId && a.status === "active"))
@@ -121,7 +127,8 @@ export async function submitConcertReport(v: ConcertReportInput): Promise<Action
 
 /* ---------------- 응원 ---------------- */
 
-export async function cheerArtist(userId: string, artistId: string): Promise<"ok" | "used" | "invalid"> {
+export async function cheerArtist(userId: string, artistId: string): Promise<"ok" | "used" | "invalid" | "readonly"> {
+  if (isDemoMode()) return "readonly";
   if (!userId) return "invalid";
   const result = mutate((db) => {
     if (!db.artists.some((a) => a.id === artistId && a.status === "active")) return "invalid" as const;

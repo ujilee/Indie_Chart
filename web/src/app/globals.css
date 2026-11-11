@@ -47,3 +47,9 @@ textarea,
 select {
   font: inherit;
 }
+
+/* 데모 모드: 잠긴 관리자 액션 폼 */
+fieldset:disabled :is(button, input, select, textarea) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

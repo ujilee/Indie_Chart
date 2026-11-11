@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { LAST_MONTH, TODAY, nowIso } from "@/lib/constants";
 import { getChart } from "@/lib/data";
 import { fetchSpotifyArtistProfile } from "@/lib/artist-image";
+import { READ_ONLY_MESSAGE, isDemoMode } from "@/lib/data-mode";
 import { mutate, newId, readDb } from "@/lib/db";
 import type { DB } from "@/lib/seed";
 import type { ArtistStatus, Period } from "@/lib/types";
@@ -22,7 +23,7 @@ function refresh() {
 
 /* ---------------- 프로필 이미지 ---------------- */
 
-export type ImageSyncResult = { updated: number; notFound: number; failed: number; skipped: number };
+export type ImageSyncResult = { updated: number; notFound: number; failed: number; skipped: number; readOnly?: boolean };
 
 /**
  * Spotify에서 프로필 이미지를 가져와 저장. 관리자가 직접 입력한 이미지는 건너뜀.
@@ -64,6 +65,8 @@ async function syncImages(ids: string[], { force = false } = {}): Promise<ImageS
 
 /** 아티스트 1팀 이미지 가져오기 (직접 입력한 이미지도 덮어씀) */
 export async function refreshArtistImage(id: string): Promise<ImageSyncResult> {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return { updated: 0, notFound: 0, failed: 0, skipped: 0, readOnly: true };
   const r = await syncImages([id], { force: true });
   refresh();
   return r;
@@ -71,6 +74,8 @@ export async function refreshArtistImage(id: string): Promise<ImageSyncResult> {
 
 /** 직접 입력한 이미지를 제외한 전체 아티스트 이미지 갱신 */
 export async function refreshAllArtistImages(): Promise<ImageSyncResult> {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return { updated: 0, notFound: 0, failed: 0, skipped: 0, readOnly: true };
   const r = await syncImages(readDb().artists.map((a) => a.id));
   refresh();
   return r;
@@ -88,6 +93,8 @@ const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 export type ArtistFormState = { errors?: Record<string, string>; saved?: boolean };
 
 export async function saveArtist(id: string | null, _: ArtistFormState, fd: FormData): Promise<ArtistFormState> {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return { errors: { name: READ_ONLY_MESSAGE } };
   const db = readDb();
   const errors: Record<string, string> = {};
   const name = str(fd, "name");
@@ -159,6 +166,8 @@ export async function saveArtist(id: string | null, _: ArtistFormState, fd: Form
 }
 
 export async function setArtistStatus(id: string, status: ArtistStatus) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const a = db.artists.find((x) => x.id === id);
     if (a) a.status = status;
@@ -169,6 +178,8 @@ export async function setArtistStatus(id: string, status: ArtistStatus) {
 /* ---------------- 아티스트 제보 ---------------- */
 
 export async function approveArtistReport(reportId: string) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   let createdId: string | null = null;
   mutate((db) => {
     const r = db.artistReports.find((x) => x.id === reportId);
@@ -199,6 +210,8 @@ export async function approveArtistReport(reportId: string) {
 }
 
 export async function rejectArtistReport(reportId: string, fd: FormData) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const r = db.artistReports.find((x) => x.id === reportId);
     if (!r || r.status !== "pending") return;
@@ -212,6 +225,8 @@ export async function rejectArtistReport(reportId: string, fd: FormData) {
 /* ---------------- 공연 ---------------- */
 
 export async function approveConcert(id: string) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const c = db.concerts.find((x) => x.id === id);
     if (!c || c.status !== "pending") return;
@@ -222,6 +237,8 @@ export async function approveConcert(id: string) {
 }
 
 export async function rejectConcert(id: string, fd: FormData) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const c = db.concerts.find((x) => x.id === id);
     if (!c || c.status !== "pending") return;
@@ -233,6 +250,8 @@ export async function rejectConcert(id: string, fd: FormData) {
 }
 
 export async function cancelConcert(id: string) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const c = db.concerts.find((x) => x.id === id);
     if (c && c.status === "approved") {
@@ -246,6 +265,8 @@ export async function cancelConcert(id: string) {
 export type ConcertFormState = { errors?: Record<string, string>; ok?: boolean };
 
 export async function createConcert(_: ConcertFormState, fd: FormData): Promise<ConcertFormState> {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return { errors: { artistId: READ_ONLY_MESSAGE } };
   const db = readDb();
   const v = {
     artistId: str(fd, "artistId"),
@@ -292,6 +313,8 @@ export async function createConcert(_: ConcertFormState, fd: FormData): Promise<
 export type BasisFormState = { error?: string; saved?: boolean };
 
 export async function updateBasis(period: Period, _: BasisFormState, fd: FormData): Promise<BasisFormState> {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return { error: READ_ONLY_MESSAGE };
   const after = {
     likes: Number(fd.get("likes")),
     fans: Number(fd.get("fans")),
@@ -313,6 +336,8 @@ export async function updateBasis(period: Period, _: BasisFormState, fd: FormDat
 
 /** 실패 건 재수집 (목업: 즉시 성공 처리) */
 export async function retryFailure(runId: string, artistId: string, platform: string) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const run = db.collectionRuns.find((r) => r.id === runId);
     const f = run?.failures.find((x) => x.artistId === artistId && x.platform === platform);
@@ -325,6 +350,8 @@ export async function retryFailure(runId: string, artistId: string, platform: st
 
 /** 수동 전체 재수집: 미해결 실패 해소 + 수집 대기 아티스트 최초 수집 */
 export async function runCollection() {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   let newlyCollected: string[] = [];
   mutate((db) => {
     const latest = [...db.collectionRuns].sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -350,6 +377,8 @@ export async function runCollection() {
 }
 
 export async function collectArtist(id: string) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const a = db.artists.find((x) => x.id === id);
     if (a) a.collected = true;
@@ -361,6 +390,8 @@ export async function collectArtist(id: string) {
 /* ---------------- 응원 ---------------- */
 
 export async function setCheerValid(id: string, valid: boolean) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     const r = db.cheerRecords.find((x) => x.id === id);
     if (!r) return;
@@ -372,6 +403,8 @@ export async function setCheerValid(id: string, valid: boolean) {
 
 /** 의심 기록 일괄 무효 처리 */
 export async function invalidateFlagged() {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   mutate((db) => {
     db.cheerRecords.forEach((r) => {
       if (r.flag && r.valid) {
@@ -386,6 +419,8 @@ export async function invalidateFlagged() {
 /* ---------------- 월간 종합 TOP 3 ---------------- */
 
 export async function confirmMonthlyTop3() {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
   const db = readDb();
   const chart = getChart("monthly", db);
   const entries = chart.entries

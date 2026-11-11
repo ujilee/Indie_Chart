@@ -47,3 +47,13 @@ export const primaryBtn =
   "h-12 px-8 rounded-full bg-fg text-bg font-bold hover:bg-accent transition-colors disabled:bg-surface disabled:text-subtle";
 export const secondaryBtn =
   "h-12 px-8 rounded-full border border-line font-semibold hover:border-fg transition-colors grid place-items-center";
+
+/** 데모(읽기 전용) 모드 안내 */
+export function DemoNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <p role="status" className="rounded-xl bg-surface px-4 py-3 text-sm text-muted">
+      <b className="mr-1.5 text-fg">데모 모드</b>
+      {children}
+    </p>
+  );
+}

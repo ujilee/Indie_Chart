@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { btn } from "@/components/admin/ui";
+import { useDemoMode } from "@/lib/data-mode-context";
 import { refreshAllArtistImages, refreshArtistImage, type ImageSyncResult } from "./actions";
 
 function describe(r: ImageSyncResult, single: boolean) {
+  if (r.readOnly) return "데모 모드에서는 이미지를 갱신할 수 없어요.";
   if (single) {
     if (r.updated) return "Spotify 이미지를 가져왔어요.";
     if (r.notFound) return "Spotify에서 이미지를 찾지 못했어요. Spotify ID를 확인하세요.";
@@ -19,6 +21,7 @@ function describe(r: ImageSyncResult, single: boolean) {
 
 export default function ImageSyncButton({ artistId, label }: { artistId?: string; label?: string }) {
   const [pending, start] = useTransition();
+  const demo = useDemoMode();
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const run = () =>
@@ -29,7 +32,7 @@ export default function ImageSyncButton({ artistId, label }: { artistId?: string
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <button type="button" onClick={run} disabled={pending} className={btn.outline}>
+      <button type="button" onClick={run} disabled={pending || demo} title={demo ? "데모 모드에서는 변경할 수 없어요" : undefined} className={btn.outline}>
         {pending ? "가져오는 중…" : (label ?? "Spotify 이미지 가져오기")}
       </button>
       {message && <span className={`text-xs ${message.ok ? "text-muted" : "text-up"}`}>{message.text}</span>}

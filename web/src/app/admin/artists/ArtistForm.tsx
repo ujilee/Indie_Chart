@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/components/admin/ActionForm";
 import { useActionState } from "react";
 import { adminInput, btn } from "@/components/admin/ui";
 import type { Artist } from "@/lib/types";
@@ -26,7 +27,7 @@ export default function ArtistForm({ artist }: { artist?: Artist }) {
   };
 
   return (
-    <form action={action} className="p-5 grid sm:grid-cols-2 gap-x-4 gap-y-5">
+    <ActionForm action={action} className="p-5 grid sm:grid-cols-2 gap-x-4 gap-y-5">
       {FIELDS.map((f) => (
         <label key={f.name} className="block">
           <span className="text-sm font-semibold">
@@ -50,6 +51,6 @@ export default function ArtistForm({ artist }: { artist?: Artist }) {
         {state.saved && <span className="text-sm text-muted">저장되었어요.</span>}
         {!artist && <span className="text-xs text-subtle">등록 후 최초 데이터 수집이 완료되면 차트에 반영돼요.</span>}
       </div>
-    </form>
+    </ActionForm>
   );
 }

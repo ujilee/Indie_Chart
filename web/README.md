@@ -28,3 +28,14 @@ npm run dev   # http://localhost:3000 , 관리자: /admin
 - 소셜 로그인: localStorage 목업. OAuth 연동 필요
 - 관리자 인증: 미적용
 - 기준일: `src/lib/constants.ts`의 `TODAY` (2026-11-11) 고정
+
+## 데이터 모드
+
+| 모드 | 기본 적용 | 동작 |
+| --- | --- | --- |
+| `file` | 로컬 개발 | `web/.data/db.json`에 읽고 쓴다. 파일을 지우면 시드 데이터로 초기화된다. |
+| `demo` | Vercel (`VERCEL` 환경 변수가 있을 때) | 시드 데이터를 메모리에서 읽기만 한다. 제보·응원·관리자 변경 기능은 화면과 서버 액션 양쪽에서 막는다. |
+
+`INDIECHART_DATA_MODE=file` 또는 `demo`로 직접 지정할 수 있다. Vercel은 파일 시스템이 읽기 전용이라 `file` 모드로 배포하면 첫 요청에서 서버 오류가 난다.
+
+실제 데이터를 저장하려면 `src/lib/db.ts`의 `readDb`/`writeDb`/`mutate`를 외부 DB(예: Postgres)로 교체해야 한다.

@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/components/admin/ActionForm";
 import { useActionState, useEffect, useRef } from "react";
 import { adminInput, btn } from "@/components/admin/ui";
 import { createConcert, type ConcertFormState } from "../actions";
@@ -13,7 +14,7 @@ export default function ConcertCreateForm({ artists, today }: { artists: { id: s
   const err = (k: string) => state.errors?.[k] && <span className="mt-1 block text-xs text-up">{state.errors[k]}</span>;
 
   return (
-    <form ref={ref} action={action} className="p-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <ActionForm ref={ref} action={action} className="p-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       <label className="text-sm">
         아티스트 *
         <select name="artistId" defaultValue="" className={`${adminInput} mt-1 w-full`}>
@@ -56,6 +57,6 @@ export default function ConcertCreateForm({ artists, today }: { artists: { id: s
         </button>
         {state.ok && <span className="text-sm text-muted">등록되었어요.</span>}
       </div>
-    </form>
+    </ActionForm>
   );
 }

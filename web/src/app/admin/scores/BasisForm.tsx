@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionForm } from "@/components/admin/ActionForm";
 import { useActionState } from "react";
 import { adminInput, btn } from "@/components/admin/ui";
 import type { FullScoreBasis, Period } from "@/lib/types";
@@ -8,7 +9,7 @@ import { updateBasis, type BasisFormState } from "../actions";
 export default function BasisForm({ period, basis }: { period: Period; basis: FullScoreBasis }) {
   const [state, action, pending] = useActionState<BasisFormState, FormData>(updateBasis.bind(null, period), {});
   return (
-    <form action={action} key={`${period}-${basis.likes}-${basis.fans}-${basis.followers}`} className="p-5 space-y-3">
+    <ActionForm action={action} key={`${period}-${basis.likes}-${basis.fans}-${basis.followers}`} className="p-5 space-y-3">
       {(
         [
           ["likes", "멜론 좋아요 증가량"],
@@ -29,6 +30,6 @@ export default function BasisForm({ period, basis }: { period: Period; basis: Fu
         {state.saved && <span className="text-sm text-muted">저장되었어요.</span>}
         {state.error && <span className="text-sm text-up">{state.error}</span>}
       </div>
-    </form>
+    </ActionForm>
   );
 }

@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/admin/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, EmptyRow, Pill, Table, Tabs, adminInput, btn, fmtDateTime } from "@/components/admin/ui";
 import { RejectForm } from "@/components/admin/RejectForm";
@@ -158,18 +159,18 @@ export default async function AdminConcerts({ searchParams }: { searchParams: Pr
                       <div className="flex justify-end gap-1.5">
                         {c.status === "pending" && (
                           <>
-                            <form action={approveConcert.bind(null, c.id)}>
+                            <ActionForm action={approveConcert.bind(null, c.id)}>
                               <button disabled={!!dup || d < 0} className={`${btn.small} bg-fg text-bg hover:bg-accent disabled:bg-surface disabled:text-subtle`}>
                                 승인
                               </button>
-                            </form>
+                            </ActionForm>
                             <RejectForm action={rejectConcert.bind(null, c.id)} />
                           </>
                         )}
                         {c.status === "approved" && d >= 0 && (
-                          <form action={cancelConcert.bind(null, c.id)}>
+                          <ActionForm action={cancelConcert.bind(null, c.id)}>
                             <button className={`${btn.small} border border-line hover:border-up hover:text-up`}>공연 취소</button>
-                          </form>
+                          </ActionForm>
                         )}
                       </div>
                     </td>

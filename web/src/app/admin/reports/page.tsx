@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/admin/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, EmptyRow, Pill, Table, Tabs, btn, fmtDateTime } from "@/components/admin/ui";
 import { RejectForm } from "@/components/admin/RejectForm";
@@ -95,11 +96,11 @@ export default async function AdminReports({ searchParams }: { searchParams: Pro
                 <td>
                   {tab === "pending" ? (
                     <div className="flex gap-1.5">
-                      <form action={approveArtistReport.bind(null, r.id)}>
+                      <ActionForm action={approveArtistReport.bind(null, r.id)}>
                         <button className={`${btn.small} bg-fg text-bg hover:bg-accent`} disabled={issues.some((i) => i.startsWith("Spotify"))}>
                           승인
                         </button>
-                      </form>
+                      </ActionForm>
                       <RejectForm action={rejectArtistReport.bind(null, r.id)} />
                     </div>
                   ) : (

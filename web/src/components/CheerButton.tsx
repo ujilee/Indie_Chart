@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { useDemoMode } from "@/lib/data-mode-context";
 import { useSession } from "@/lib/session";
 import { useToast } from "./Toast";
 
@@ -19,6 +20,7 @@ export default function CheerButton({
   const pathname = usePathname();
   const toast = useToast();
   const [pending, setPending] = useState(false);
+  const demo = useDemoMode();
 
   const done = todayCheer === artistId;
   const usedOther = !!user && !!todayCheer && !done;
@@ -30,11 +32,18 @@ export default function CheerButton({
   }[size];
 
   const onClick = async () => {
+    // 데모 모드: 응원은 저장되지 않으므로 서버에 요청하지 않고 안내만 한다
+    if (demo) {
+      toast("데모 모드에서는 응원이 저장되지 않아 이용할 수 없어요.");
+      return;
+    }
     setPending(true);
     const r = await cheer(artistId);
     setPending(false);
     if (r === "login") {
       router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+    } else if (r === "readonly") {
+      toast("데모 모드에서는 응원이 저장되지 않아 이용할 수 없어요.");
     } else if (r === "used") {
       toast("오늘의 응원을 이미 사용했어요. 내일 다시 응원해 주세요!");
     } else {
@@ -46,7 +55,9 @@ export default function CheerButton({
   // 세션 로드 전에는 상태가 확정되지 않으므로 중립 스타일로 표시
   const style = !ready
     ? "bg-surface text-transparent"
-    : done
+    : demo
+      ? "bg-surface text-subtle cursor-not-allowed"
+      : done
       ? "bg-accent text-white cursor-default"
       : usedOther
         ? "bg-surface text-subtle cursor-not-allowed"
@@ -55,8 +66,8 @@ export default function CheerButton({
   return (
     <button
       onClick={onClick}
-      disabled={!ready || done || usedOther || pending}
-      title={usedOther ? "오늘의 응원을 이미 사용했어요" : undefined}
+      disabled={!ready || (!demo && (done || usedOther)) || pending}
+      title={demo ? "데모 모드에서는 응원할 수 없어요" : usedOther ? "오늘의 응원을 이미 사용했어요" : undefined}
       className={`${sizes} shrink-0 rounded-full font-bold transition-colors ${style}`}
     >
       {done ? "응원 완료" : usedOther ? "내일 다시" : pending ? "응원 중…" : "응원하기"}

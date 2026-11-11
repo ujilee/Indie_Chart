@@ -3,11 +3,13 @@ import Link from "next/link";
 import AdminNav from "./AdminNav";
 import { readDb } from "@/lib/db";
 import { getOpenFailures } from "@/lib/data";
+import { isDemoMode } from "@/lib/data-mode";
 
 export const metadata: Metadata = { title: "관리자 — INDIE CHART" };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const db = readDb();
+  const demo = isDemoMode();
   const badges = {
     "/admin/reports": db.artistReports.filter((r) => r.status === "pending").length,
     "/admin/concerts": db.concerts.filter((c) => c.status === "pending").length,
@@ -32,10 +34,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/" className="block text-white/70 hover:text-white mb-2">
             서비스 화면 보기 ↗
           </Link>
-          개발용 · 관리자 인증 미적용
+          {demo ? "데모 모드 · 읽기 전용" : "개발용"} · 관리자 인증 미적용
         </div>
       </aside>
-      <main className="min-w-0 px-4 sm:px-8 py-6 sm:py-8">{children}</main>
+      <main className="min-w-0 px-4 sm:px-8 py-6 sm:py-8">
+        {demo && (
+          <p role="status" className="mb-5 rounded-xl border border-line bg-bg px-4 py-3 text-sm text-muted">
+            <b className="mr-1.5 text-accent">데모 모드 · 읽기 전용</b>
+            DB가 연결되지 않은 배포라 승인·반려·수정·수집 등 변경 기능은 비활성화돼 있어요. 화면은 샘플 데이터로 표시돼요.
+          </p>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

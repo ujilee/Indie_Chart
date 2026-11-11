@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/admin/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, EmptyRow, Pill, Stat, Table, btn, fmtDateTime } from "@/components/admin/ui";
 import { getArtist } from "@/lib/data";
@@ -18,9 +19,9 @@ export default function AdminCollection() {
         title="데이터 수집 관리"
         desc="매일 오전 1시(KST) 멜론(곡 순위·곡별 좋아요·팬맺기)과 Spotify(팔로워)를 수집해 일간 스냅샷으로 저장해요."
         actions={
-          <form action={runCollection}>
+          <ActionForm action={runCollection}>
             <button className={btn.primary}>지금 재수집 실행</button>
-          </form>
+          </ActionForm>
         }
       />
 
@@ -44,9 +45,9 @@ export default function AdminCollection() {
                   </Link>
                   <p className="text-xs text-muted truncate">{f.reason}</p>
                 </div>
-                <form action={retryFailure.bind(null, latest!.id, f.artistId, f.platform)}>
+                <ActionForm action={retryFailure.bind(null, latest!.id, f.artistId, f.platform)}>
                   <button className={`${btn.small} bg-fg text-bg hover:bg-accent`}>재수집</button>
-                </form>
+                </ActionForm>
               </li>
             ))}
           </ul>
@@ -64,9 +65,9 @@ export default function AdminCollection() {
                   </Link>
                   <p className="text-xs text-muted font-mono truncate">Spotify {a.platformIds.spotify}</p>
                 </div>
-                <form action={collectArtist.bind(null, a.id)}>
+                <ActionForm action={collectArtist.bind(null, a.id)}>
                   <button className={`${btn.small} bg-fg text-bg hover:bg-accent`}>수집 실행</button>
-                </form>
+                </ActionForm>
               </li>
             ))}
           </ul>

@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/admin/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, EmptyRow, Pill, Table, Tabs, btn, fmtDateTime, fmtScore } from "@/components/admin/ui";
 import { CURRENT_MONTH, monthLabel } from "@/lib/constants";
@@ -67,9 +68,9 @@ export default async function AdminCheers({ searchParams }: { searchParams: Prom
               ]}
             />
             {view === "flagged" && flagged.some((r) => r.valid) && (
-              <form action={invalidateFlagged} className="mb-4">
+              <ActionForm action={invalidateFlagged} className="mb-4">
                 <button className={btn.danger}>의심 기록 일괄 무효</button>
-              </form>
+              </ActionForm>
             )}
           </div>
           <Card title="응원 기록">
@@ -87,9 +88,9 @@ export default async function AdminCheers({ searchParams }: { searchParams: Prom
                   </td>
                   <td>{r.valid ? <Pill tone="dark">유효</Pill> : <Pill tone="line">무효</Pill>}</td>
                   <td className="text-right">
-                    <form action={setCheerValid.bind(null, r.id, !r.valid)}>
+                    <ActionForm action={setCheerValid.bind(null, r.id, !r.valid)}>
                       <button className={`${btn.small} border border-line hover:border-fg`}>{r.valid ? "무효 처리" : "복구"}</button>
-                    </form>
+                    </ActionForm>
                   </td>
                 </tr>
               ))}

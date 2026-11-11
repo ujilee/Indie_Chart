@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/lib/session";
 import { ToastProvider } from "@/components/Toast";
+import { isDemoMode } from "@/lib/data-mode";
+import { DemoModeProvider } from "@/lib/data-mode-context";
 
 export const metadata: Metadata = {
   title: "INDIE CHART — 인디 아티스트 차트",
@@ -27,11 +29,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased min-h-dvh flex flex-col">
-        <SessionProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
-        </SessionProvider>
+        <DemoModeProvider demo={isDemoMode()}>
+          <SessionProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </SessionProvider>
+        </DemoModeProvider>
       </body>
     </html>
   );

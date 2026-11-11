@@ -30,7 +30,7 @@ interface SessionValue {
   todayCheer: string | null;
   /** 오늘 응원 가능 횟수 (비로그인은 null) */
   remainingCheers: number | null;
-  cheer: (artistId: string) => Promise<"ok" | "login" | "used">;
+  cheer: (artistId: string) => Promise<"ok" | "login" | "used" | "readonly">;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -93,7 +93,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (todayCheer) return "used";
         const r = await cheerArtist(user.id, artistId);
         if (r === "ok") update((s) => ({ ...s, cheer: { userId: user.id, date: TODAY, artistId } }));
-        return r === "ok" ? "ok" : "used";
+        return r === "ok" || r === "readonly" ? r : "used";
       },
     }),
     [ready, state, todayCheer, update],

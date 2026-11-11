@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/admin/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, Pill, Table, btn, fmtDateTime, fmtScore } from "@/components/admin/ui";
 import { Avatar } from "@/components/ui";
@@ -20,11 +21,11 @@ export default function AdminTop3() {
         title="월간 최종 종합 TOP 3"
         desc="직전 완료 월의 월간 종합 차트 1~3위(공동 순위 포함)를 홈 상단에 고정 노출해요. 확정 전까지는 이전 결과가 유지돼요."
         actions={
-          <form action={confirmMonthlyTop3}>
+          <ActionForm action={confirmMonthlyTop3}>
             <button disabled={blocked} className={`${btn.primary} disabled:bg-surface disabled:text-subtle`}>
               {confirmed ? `${monthLabel(LAST_MONTH)} 재확정` : `${monthLabel(LAST_MONTH)} 집계 확정`}
             </button>
-          </form>
+          </ActionForm>
         }
       />
       {blocked && <p className="mb-4 text-sm text-up">수집 실패가 남아 있어 집계를 확정할 수 없어요.</p>}

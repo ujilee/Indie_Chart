@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Field, SubmitDone, inputClass, primaryBtn, secondaryBtn } from "@/components/form";
+import { useDemoMode } from "@/lib/data-mode-context";
+import { DemoNotice, Field, SubmitDone, inputClass, primaryBtn, secondaryBtn } from "@/components/form";
 import { submitArtistReport } from "@/app/actions";
 
 type Values = { name: string; spotify: string; melon: string; youtube: string; apple: string };
@@ -13,6 +14,8 @@ export default function ArtistReportForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof Values, string>>>({});
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const demo = useDemoMode();
 
   const set = (k: keyof Values) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setV((s) => ({ ...s, [k]: e.target.value }));
@@ -25,7 +28,10 @@ export default function ArtistReportForm() {
     const r = await submitArtistReport(v);
     setPending(false);
     if (r.ok) setDone(true);
-    else setErrors(r.errors);
+    else {
+      setErrors(r.errors);
+      setMessage(r.message);
+    }
   };
 
   if (done) {
@@ -85,8 +91,13 @@ export default function ArtistReportForm() {
       <Field label="Apple Music 아티스트 ID" error={errors.apple}>
         <input value={v.apple} onChange={set("apple")} className={inputClass} placeholder="ID 또는 URL" aria-invalid={!!errors.apple} />
       </Field>
-      <button type="submit" disabled={pending} className={`${primaryBtn} w-full`}>
-        {pending ? "접수 중…" : "제보하기"}
+      {demo ? (
+        <DemoNotice>데모 모드에서는 제보가 저장되지 않아 접수할 수 없어요.</DemoNotice>
+      ) : (
+        message && <p className="text-sm text-up">{message}</p>
+      )}
+      <button type="submit" disabled={pending || demo} className={`${primaryBtn} w-full`}>
+        {pending ? "접수 중…" : demo ? "데모 모드에서는 제보할 수 없어요" : "제보하기"}
       </button>
     </form>
   );

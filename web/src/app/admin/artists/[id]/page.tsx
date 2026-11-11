@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/admin/ActionForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminHeader, Card, Pill, btn, fmtDateTime, fmtScore } from "@/components/admin/ui";
@@ -44,15 +45,15 @@ export default async function EditArtist({
                 </Link>
               )}
               {artist.status === "active" && !artist.collected && (
-                <form action={collectArtist.bind(null, artist.id)}>
+                <ActionForm action={collectArtist.bind(null, artist.id)}>
                   <button className={btn.primary}>최초 데이터 수집</button>
-                </form>
+                </ActionForm>
               )}
-              <form action={setArtistStatus.bind(null, artist.id, artist.status === "active" ? "excluded" : "active")}>
+              <ActionForm action={setArtistStatus.bind(null, artist.id, artist.status === "active" ? "excluded" : "active")}>
                 <button className={artist.status === "active" ? btn.danger : btn.primary}>
                   {artist.status === "active" ? "차트에서 제외" : "차트 대상으로 복구"}
                 </button>
-              </form>
+              </ActionForm>
             </>
           }
         />

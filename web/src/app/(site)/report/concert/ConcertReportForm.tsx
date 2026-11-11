@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Field, SubmitDone, inputClass, primaryBtn, secondaryBtn } from "@/components/form";
+import { useDemoMode } from "@/lib/data-mode-context";
+import { DemoNotice, Field, SubmitDone, inputClass, primaryBtn, secondaryBtn } from "@/components/form";
 import { submitConcertReport } from "@/app/actions";
 
 type Values = {
@@ -32,6 +33,8 @@ export default function ConcertReportForm({
   const [errors, setErrors] = useState<Partial<Record<keyof Values, string>>>({});
   const [done, setDone] = useState(false);
   const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const demo = useDemoMode();
 
   const set = (k: keyof Values) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setV((s) => ({ ...s, [k]: e.target.value }));
@@ -44,7 +47,10 @@ export default function ConcertReportForm({
     const r = await submitConcertReport({ ...v, poster: poster?.data ?? "" });
     setPending(false);
     if (r.ok) setDone(true);
-    else setErrors(r.errors);
+    else {
+      setErrors(r.errors);
+      setMessage(r.message);
+    }
   };
 
   const onPoster = (file: File | undefined) => {
@@ -150,8 +156,13 @@ export default function ConcertReportForm({
           placeholder="게스트, 회차 정보 등"
         />
       </Field>
-      <button type="submit" disabled={pending} className={`${primaryBtn} w-full`}>
-        {pending ? "접수 중…" : "제보하기"}
+      {demo ? (
+        <DemoNotice>데모 모드에서는 제보가 저장되지 않아 접수할 수 없어요.</DemoNotice>
+      ) : (
+        message && <p className="text-sm text-up">{message}</p>
+      )}
+      <button type="submit" disabled={pending || demo} className={`${primaryBtn} w-full`}>
+        {pending ? "접수 중…" : demo ? "데모 모드에서는 제보할 수 없어요" : "제보하기"}
       </button>
     </form>
   );
