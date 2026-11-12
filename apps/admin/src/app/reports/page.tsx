@@ -12,7 +12,7 @@ type Status = ArtistReport["status"];
 export default async function AdminReports({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status = "pending" } = await searchParams;
   const tab = (["pending", "approved", "rejected"].includes(status) ? status : "pending") as Status;
-  const db = readDb();
+  const db = await readDb();
   const list = db.artistReports.filter((r) => r.status === tab).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   // 검토 대기 제보는 Spotify 프로필을 조회해 실존 여부와 이미지를 미리 보여 준다
   const profiles = new Map<string, SpotifyArtistProfile | null | "error">(

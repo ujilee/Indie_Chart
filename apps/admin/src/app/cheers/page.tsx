@@ -18,7 +18,7 @@ const WINDOW: Record<Period, string> = {
 export default async function AdminCheers({ searchParams }: { searchParams: Promise<{ period?: string; view?: string }> }) {
   const { period = "daily", view = "flagged" } = await searchParams;
   const p = (PERIODS.some((x) => x.key === period) ? period : "daily") as Period;
-  const db = readDb();
+  const db = await readDb();
   const nicknames = new Map(db.users.map((u) => [u.id, u.nickname]));
   const chart = getChart(p, db);
   const rows = [...chart.entries].sort((a, b) => b.metrics.cheers - a.metrics.cheers);

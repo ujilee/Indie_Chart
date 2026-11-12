@@ -1,11 +1,13 @@
 /**
- * 아티스트 수치 CSV 읽기.
+ * 아티스트 수치 CSV 읽기와 수치 저장 도우미.
  * 열: date, artist, melon_fans, melon_likes, spotify_followers, spotify_monthly_listeners
  * - artist: 아티스트 ID(a001), 멜론 아티스트 ID, 또는 아티스트명
  * - date가 비어 있으면 화면에서 고른 기준일을 쓴다
  * - 숫자 칸이 비어 있으면 그 항목은 바꾸지 않는다
  */
-import type { Artist } from "@indie/core/types";
+import { nowIso } from "@indie/core/constants";
+import type { DB } from "@indie/core/seed";
+import type { Artist, MetricSnapshot } from "@indie/core/types";
 
 export const CSV_COLUMNS = ["date", "artist", "melon_fans", "melon_likes", "spotify_followers", "spotify_monthly_listeners"] as const;
 
@@ -98,4 +100,28 @@ export function readMetricsCsv(text: string, artists: Artist[], fallbackDate: st
     out.push({ line, artistId: artist.id, date, values });
   });
   return { rows: out, errors };
+}
+
+/** 한 아티스트·한 날짜의 수치를 합쳐 저장. undefined는 그대로 두고, null은 지운다 */
+export function upsertSnapshot(
+  db: DB,
+  artistId: string,
+  date: string,
+  values: Partial<Record<MetricKey, number | null>>,
+  source: MetricSnapshot["source"],
+) {
+  let snap = db.metricSnapshots.find((s) => s.artistId === artistId && s.date === date);
+  if (!snap) {
+    snap = { artistId, date, source, updatedAt: nowIso() };
+    db.metricSnapshots.push(snap);
+  }
+  for (const [k, v] of Object.entries(values) as [MetricKey, number | null | undefined][]) {
+    if (v === undefined) continue;
+    if (v === null) delete snap[k];
+    else snap[k] = v;
+  }
+  snap.source = source;
+  snap.updatedAt = nowIso();
+  // 모든 값이 비면 기록 자체를 지운다
+  if (METRIC_FIELDS.every((f) => snap![f.key] == null)) db.metricSnapshots = db.metricSnapshots.filter((s) => s !== snap);
 }

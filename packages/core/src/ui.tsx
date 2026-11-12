@@ -55,7 +55,9 @@ export function Avatar({
       />
     );
   }
-  const [a, b] = SHADES[parseInt(artist.id.slice(1), 10) % SHADES.length];
+  // ID 형식(a001, uuid)과 관계없이 같은 아티스트는 같은 색
+  const hash = [...artist.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0);
+  const [a, b] = SHADES[(/^a\d+$/.test(artist.id) ? parseInt(artist.id.slice(1), 10) : hash) % SHADES.length];
   return (
     <div
       aria-label={artist.name}

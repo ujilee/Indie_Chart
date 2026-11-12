@@ -7,8 +7,8 @@ import { getArtist, getChart, getOpenFailures } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 import { confirmMonthlyTop3 } from "../actions";
 
-export default function AdminTop3() {
-  const db = readDb();
+export default async function AdminTop3() {
+  const db = await readDb();
   const chart = getChart("monthly", db);
   const candidates = chart.entries.filter((e) => e.rank <= 5);
   const confirmed = db.monthlyTop3.find((r) => r.month === lastServiceMonth());

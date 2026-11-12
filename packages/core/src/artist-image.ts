@@ -75,3 +75,21 @@ async function fetchUncached(spotifyId: string): Promise<SpotifyArtistProfile | 
     throw e;
   }
 }
+
+/**
+ * Spotify 팔로워 수 (공식 Web API). 키가 없거나 API가 값을 주지 않으면 null.
+ * Spotify는 2026년부터 개발 모드 앱의 아티스트 응답에서 팔로워를 빼고 있어, 키가 있어도 null일 수 있다.
+ * 월간 리스너는 공식 API에 없다.
+ */
+export async function fetchSpotifyFollowers(spotifyId: string): Promise<number | null> {
+  if (!/^[A-Za-z0-9]{22}$/.test(spotifyId)) return null;
+  const accessToken = await getAccessToken();
+  if (!accessToken) return null;
+  const data = await getJson(`https://api.spotify.com/v1/artists/${spotifyId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const n = data?.followers?.total;
+  return typeof n === "number" ? n : null;
+}
+
+export const hasSpotifyApiKeys = () => Boolean(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET);

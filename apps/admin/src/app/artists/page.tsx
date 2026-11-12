@@ -8,7 +8,7 @@ type Filter = "all" | "active" | "uncollected" | "excluded";
 
 export default async function AdminArtists({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   const { q = "", status = "all" } = await searchParams;
-  const db = readDb();
+  const db = await readDb();
   const filter = (["all", "active", "uncollected", "excluded"].includes(status) ? status : "all") as Filter;
   const daily = new Map(getChart("daily", db).entries.map((e) => [e.artist.id, e.rank]));
 

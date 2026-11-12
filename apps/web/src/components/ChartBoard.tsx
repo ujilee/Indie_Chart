@@ -60,6 +60,11 @@ export default function ChartBoard({ charts, updatedAt }: { charts: PublicChart[
       </div>
 
       <ol>
+        {chart.rows.length === 0 && (
+          <li className="border-b border-line py-14 text-center text-sm text-muted">
+            아직 집계된 순위가 없어요. 수치가 모이면 차트가 공개돼요.
+          </li>
+        )}
         {chart.rows.slice(0, limit).map((row) => (
           <li key={row.artist.id} className="border-b border-line">
             <Link

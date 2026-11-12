@@ -3,12 +3,13 @@ import ConcertReportForm from "./ConcertReportForm";
 import { Container, PageTitle } from "@indie/core/ui";
 import { serviceToday } from "@indie/core/constants";
 import { getActiveArtists } from "@indie/core/data";
+import { readDb } from "@indie/core/db";
 
 export const metadata: Metadata = { title: "공연정보 제보 — INDIE CHART" };
 
 export default async function ConcertReportPage({ searchParams }: { searchParams: Promise<{ artist?: string }> }) {
   const { artist } = await searchParams;
-  const artists = getActiveArtists();
+  const artists = getActiveArtists(await readDb());
   return (
     <Container className="max-w-2xl">
       <PageTitle

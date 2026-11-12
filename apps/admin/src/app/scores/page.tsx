@@ -11,7 +11,7 @@ const n = (v: number | null) => (v == null ? <span className="text-up">미수집
 export default async function AdminScores({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const { period = "daily" } = await searchParams;
   const p = (PERIODS.some((x) => x.key === period) ? period : "daily") as Period;
-  const db = readDb();
+  const db = await readDb();
   const chart = getChart(p, db);
   const basis = db.scoreConfig.basis[p];
   const maxCheers = Math.max(0, ...chart.entries.map((e) => e.metrics.cheers));

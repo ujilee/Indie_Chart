@@ -18,6 +18,7 @@ import type {
   User,
   MetricSnapshot,
   MelonChartSnapshot,
+  MelonSongCache,
   MetricsSource,
 } from "./types";
 
@@ -35,6 +36,8 @@ export interface DB {
   metricSnapshots: MetricSnapshot[];
   /** 멜론 인디 일간 차트 수집 결과 */
   melonCharts: MelonChartSnapshot[];
+  /** 멜론 아티스트 ID → 발매곡 ID 목록 */
+  melonSongCache: Record<string, MelonSongCache>;
   settings: { metricsSource: MetricsSource };
   scoreConfig: { basis: Record<Period, FullScoreBasis>; history: BasisChange[] };
   collectionRuns: CollectionRun[];
@@ -289,6 +292,7 @@ export function createSeed(): DB {
     users: [],
     metricSnapshots: [],
     melonCharts: [],
+    melonSongCache: {},
     settings: { metricsSource: "mock" },
     scoreConfig: {
       basis: structuredClone(DEFAULT_FULL_SCORE_BASIS),

@@ -5,8 +5,8 @@ import { lastServiceMonth, monthLabel } from "@indie/core/constants";
 import { getArtist, getChart, getMonthlyCheerCounts, getOpenFailures, rankCheers, getActiveArtists } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 
-export default function AdminDashboard() {
-  const db = readDb();
+export default async function AdminDashboard() {
+  const db = await readDb();
   const active = db.artists.filter((a) => a.status === "active");
   const uncollected = active.filter((a) => !a.collected);
   const latestRun = [...db.collectionRuns].sort((a, b) => b.date.localeCompare(a.date))[0];

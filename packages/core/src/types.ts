@@ -49,6 +49,8 @@ export interface Concert {
   poster?: string;
   status: ConcertStatus;
   source: "admin" | "report";
+  /** 제보한 회원 */
+  reporterId?: string;
   createdAt: string;
   reviewedAt?: string;
   rejectReason?: string;
@@ -128,6 +130,8 @@ export interface ArtistReport {
   melonId?: string;
   youtube?: string;
   appleMusic?: string;
+  /** 제보한 회원 */
+  reporterId?: string;
   createdAt: string;
   status: "pending" | "approved" | "rejected";
   reviewedAt?: string;
@@ -194,7 +198,7 @@ export interface CollectionRun {
   failures: CollectionFailure[];
   manual?: boolean;
   /** mock: 목업 수집 / melon-chart: 멜론 인디 차트 실제 수집 */
-  kind?: "mock" | "melon-chart";
+  kind?: "mock" | "melon-chart" | "artist-metrics";
   /** 수집 전체가 실패했을 때 사유 */
   error?: string;
   /** 실제 수집 결과 요약 */
@@ -204,7 +208,7 @@ export interface CollectionRun {
 /** 차트 수치 출처: mock = 시드로 만든 샘플 수치, live = 실제 수집·입력한 수치 */
 export type MetricsSource = "mock" | "live";
 
-/** 아티스트별 일자 수치 (관리자 입력 또는 CSV 업로드). 값이 없는 항목은 미입력 */
+/** 아티스트별 일자 수치 (자동 수집, 관리자 입력 또는 CSV 업로드). 값이 없는 항목은 미입력 */
 export interface MetricSnapshot {
   artistId: string;
   /** 기준일 YYYY-MM-DD (KST) */
@@ -215,8 +219,15 @@ export interface MetricSnapshot {
   spotifyFollowers?: number;
   /** Spotify 월별 리스너 (점수에는 쓰지 않고 참고용) */
   spotifyMonthlyListeners?: number;
-  source: "manual" | "csv";
+  /** 마지막으로 값을 넣은 방법. auto = 자동 수집 */
+  source: "manual" | "csv" | "auto";
   updatedAt: string;
+}
+
+/** 아티스트의 멜론 발매곡 ID 목록 캐시 (곡 목록은 자주 바뀌지 않아 주기적으로만 새로 받는다) */
+export interface MelonSongCache {
+  songIds: string[];
+  fetchedAt: string;
 }
 
 /** 멜론 인디 일간 차트 수집 결과 */
@@ -224,6 +235,8 @@ export interface MelonChartSnapshot {
   /** 멜론이 표기한 차트 기준일 YYYY-MM-DD */
   chartDate: string;
   collectedAt: string;
+  /** auto: 수집기 / manual: 관리자 입력 */
+  source?: "auto" | "manual";
   entries: MelonChartEntry[];
 }
 

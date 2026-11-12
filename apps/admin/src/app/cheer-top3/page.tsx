@@ -5,8 +5,8 @@ import { serviceMonth, monthLabel } from "@indie/core/constants";
 import { getActiveArtists, getArtist, getMonthlyCheerCounts, rankCheers } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 
-export default function AdminCheerTop3() {
-  const db = readDb();
+export default async function AdminCheerTop3() {
+  const db = await readDb();
   const ranking = rankCheers(getMonthlyCheerCounts(db), getActiveArtists(db));
   const history = [...db.cheerTop3].sort((a, b) => b.month.localeCompare(a.month));
 

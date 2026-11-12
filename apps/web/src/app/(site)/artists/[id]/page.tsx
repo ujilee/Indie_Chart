@@ -10,11 +10,12 @@ import {
   getArtistRanks,
   getArtistSnapshot,
 } from "@indie/core/data";
+import { readDb } from "@indie/core/db";
 import { PERIODS } from "@indie/core/types";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const a = getArtist(id);
+  const a = getArtist(id, await readDb());
   return { title: a ? `${a.name} — INDIE CHART` : "INDIE CHART" };
 }
 
@@ -26,15 +27,16 @@ function formatDate(date: string) {
 
 export default async function ArtistPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const artist = getArtist(id);
+  const db = await readDb();
+  const artist = getArtist(id, db);
   if (!artist || artist.status !== "active") notFound();
 
-  const ranks = getArtistRanks(id);
+  const ranks = getArtistRanks(id, db);
   const daily = ranks[0];
-  const snap = getArtistSnapshot(id);
+  const snap = getArtistSnapshot(id, db);
   // 사용자에게는 향후 개최 예정인 승인 공연만 노출
-  const upcoming = getArtistConcerts(id).filter((c) => c.status === "approved" && c.date >= serviceToday());
-  const validCount = countValidConcerts(id);
+  const upcoming = getArtistConcerts(id, db).filter((c) => c.status === "approved" && c.date >= serviceToday());
+  const validCount = countValidConcerts(id, db);
 
   return (
     <Container>
@@ -103,21 +105,6 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
             <Stat label="전체 곡 좋아요" value={snap.melonLikes} gain={snap.melonLikesGain} />
             <Stat label="팬맺기" value={snap.melonFans} gain={snap.melonFansGain} />
           </dl>
-          <div className="mt-5 pt-4 border-t border-line">
-            <p className="text-xs font-semibold text-muted mb-2">멜론 인디 차트 진입곡</p>
-            {snap.melonChartSongs.length === 0 ? (
-              <p className="text-sm text-subtle">현재 차트 진입곡이 없어요.</p>
-            ) : (
-              <ul className="space-y-1.5 text-sm">
-                {snap.melonChartSongs.map((s) => (
-                  <li key={s.title} className="flex justify-between">
-                    <span className="truncate">{s.title}</span>
-                    <span className="tabular-nums text-muted">{s.rank}위</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
         <div className="rounded-2xl border border-line p-5 sm:p-6">
           <div className="flex items-center justify-between">

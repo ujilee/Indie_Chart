@@ -5,12 +5,13 @@ import { redirect } from "next/navigation";
 import { lastServiceMonth, serviceToday, nowIso } from "@indie/core/constants";
 import { getChart } from "@indie/core/data";
 import { fetchSpotifyArtistProfile } from "@indie/core/artist-image";
-import { READ_ONLY_MESSAGE, isDemoMode } from "@indie/core/data-mode";
+import { READ_ONLY_MESSAGE, getDataMode, isDemoMode } from "@indie/core/data-mode";
 import { mutate, newId, readDb } from "@indie/core/db";
 import type { DB } from "@indie/core/seed";
-import type { ArtistStatus, MetricSnapshot, MetricsSource, Period } from "@indie/core/types";
-import { collectMelonChartNow } from "@/lib/collect";
-import { METRIC_FIELDS, parseCount, readMetricsCsv, type MetricKey } from "@/lib/metrics-csv";
+import type { ArtistStatus, MetricsSource, Period } from "@indie/core/types";
+import { collectArtistMetricsNow, collectMelonChartNow } from "@/lib/collect";
+import { requireAdmin } from "@/lib/admin-auth";
+import { METRIC_FIELDS, parseCount, readMetricsCsv, upsertSnapshot, type MetricKey } from "@/lib/metrics-csv";
 import {
   isHttpUrl,
   parseAppleMusicArtistId,
@@ -32,7 +33,7 @@ export type ImageSyncResult = { updated: number; notFound: number; failed: numbe
  * 존재하지 않는 Spotify ID는 notFound, 네트워크 오류는 failed로 집계.
  */
 async function syncImages(ids: string[], { force = false } = {}): Promise<ImageSyncResult> {
-  const db = readDb();
+  const db = await readDb();
   const targets = db.artists.filter((a) => ids.includes(a.id) && (force || a.imageSource !== "manual"));
   const result: ImageSyncResult = { updated: 0, notFound: 0, failed: 0, skipped: ids.length - targets.length };
   const found = new Map<string, string>();
@@ -51,7 +52,7 @@ async function syncImages(ids: string[], { force = false } = {}): Promise<ImageS
     );
   }
   if (found.size) {
-    mutate((db) => {
+    await mutate((db) => {
       for (const a of db.artists) {
         const image = found.get(a.id);
         if (!image) continue;
@@ -67,6 +68,7 @@ async function syncImages(ids: string[], { force = false } = {}): Promise<ImageS
 
 /** 아티스트 1팀 이미지 가져오기 (직접 입력한 이미지도 덮어씀) */
 export async function refreshArtistImage(id: string): Promise<ImageSyncResult> {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return { updated: 0, notFound: 0, failed: 0, skipped: 0, readOnly: true };
   const r = await syncImages([id], { force: true });
@@ -76,14 +78,16 @@ export async function refreshArtistImage(id: string): Promise<ImageSyncResult> {
 
 /** 직접 입력한 이미지를 제외한 전체 아티스트 이미지 갱신 */
 export async function refreshAllArtistImages(): Promise<ImageSyncResult> {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return { updated: 0, notFound: 0, failed: 0, skipped: 0, readOnly: true };
-  const r = await syncImages(readDb().artists.map((a) => a.id));
+  const r = await syncImages((await readDb()).artists.map((a) => a.id));
   refresh();
   return r;
 }
 
 function nextArtistId(db: DB) {
+  if (getDataMode() === "supabase") return { id: crypto.randomUUID(), seq: db.artists.length + 1 };
   const max = Math.max(0, ...db.artists.map((a) => parseInt(a.id.slice(1), 10)));
   return { id: `a${String(max + 1).padStart(3, "0")}`, seq: max + 1 };
 }
@@ -95,9 +99,10 @@ const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 export type ArtistFormState = { errors?: Record<string, string>; saved?: boolean };
 
 export async function saveArtist(id: string | null, _: ArtistFormState, fd: FormData): Promise<ArtistFormState> {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return { errors: { name: READ_ONLY_MESSAGE } };
-  const db = readDb();
+  const db = await readDb();
   const errors: Record<string, string> = {};
   const name = str(fd, "name");
   const nameEn = str(fd, "nameEn");
@@ -130,7 +135,7 @@ export async function saveArtist(id: string | null, _: ArtistFormState, fd: Form
   let targetId = id;
   const prev = id ? db.artists.find((a) => a.id === id) : undefined;
   const spotifyChanged = !!prev && prev.platformIds.spotify !== spotify;
-  mutate((db) => {
+  await mutate((db) => {
     if (id) {
       const a = db.artists.find((x) => x.id === id);
       if (!a) return;
@@ -160,7 +165,7 @@ export async function saveArtist(id: string | null, _: ArtistFormState, fd: Form
     }
   });
   // 이미지가 없거나 Spotify ID가 바뀌면 Spotify에서 가져오기 (실패해도 저장은 유지)
-  const saved = readDb().artists.find((a) => a.id === targetId);
+  const saved = (await readDb()).artists.find((a) => a.id === targetId);
   if (saved && (!saved.image || (spotifyChanged && saved.imageSource === "spotify"))) await syncImages([saved.id]);
   refresh();
   if (!id) redirect(`/artists/${targetId}?created=1`);
@@ -168,9 +173,10 @@ export async function saveArtist(id: string | null, _: ArtistFormState, fd: Form
 }
 
 export async function setArtistStatus(id: string, status: ArtistStatus) {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const a = db.artists.find((x) => x.id === id);
     if (a) a.status = status;
   });
@@ -180,10 +186,11 @@ export async function setArtistStatus(id: string, status: ArtistStatus) {
 /* ---------------- 아티스트 제보 ---------------- */
 
 export async function approveArtistReport(reportId: string) {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
   let createdId: string | null = null;
-  mutate((db) => {
+  await mutate((db) => {
     const r = db.artistReports.find((x) => x.id === reportId);
     if (!r || r.status !== "pending") return;
     if (db.artists.some((a) => a.platformIds.spotify === r.spotifyId)) {
@@ -212,9 +219,10 @@ export async function approveArtistReport(reportId: string) {
 }
 
 export async function rejectArtistReport(reportId: string, fd: FormData) {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const r = db.artistReports.find((x) => x.id === reportId);
     if (!r || r.status !== "pending") return;
     r.status = "rejected";
@@ -227,9 +235,10 @@ export async function rejectArtistReport(reportId: string, fd: FormData) {
 /* ---------------- 공연 ---------------- */
 
 export async function approveConcert(id: string) {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const c = db.concerts.find((x) => x.id === id);
     if (!c || c.status !== "pending") return;
     c.status = "approved";
@@ -239,9 +248,10 @@ export async function approveConcert(id: string) {
 }
 
 export async function rejectConcert(id: string, fd: FormData) {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const c = db.concerts.find((x) => x.id === id);
     if (!c || c.status !== "pending") return;
     c.status = "rejected";
@@ -252,9 +262,10 @@ export async function rejectConcert(id: string, fd: FormData) {
 }
 
 export async function cancelConcert(id: string) {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const c = db.concerts.find((x) => x.id === id);
     if (c && c.status === "approved") {
       c.status = "canceled";
@@ -267,9 +278,10 @@ export async function cancelConcert(id: string) {
 export type ConcertFormState = { errors?: Record<string, string>; ok?: boolean };
 
 export async function createConcert(_: ConcertFormState, fd: FormData): Promise<ConcertFormState> {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return { errors: { artistId: READ_ONLY_MESSAGE } };
-  const db = readDb();
+  const db = await readDb();
   const v = {
     artistId: str(fd, "artistId"),
     title: str(fd, "title"),
@@ -295,7 +307,7 @@ export async function createConcert(_: ConcertFormState, fd: FormData): Promise<
     errors.venue = "같은 날짜·공연장의 공연이 이미 있어요.";
   if (Object.keys(errors).length) return { errors };
 
-  mutate((db) => {
+  await mutate((db) => {
     db.concerts.push({
       id: newId("c"),
       ...v,
@@ -315,6 +327,7 @@ export async function createConcert(_: ConcertFormState, fd: FormData): Promise<
 export type BasisFormState = { error?: string; saved?: boolean };
 
 export async function updateBasis(period: Period, _: BasisFormState, fd: FormData): Promise<BasisFormState> {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return { error: READ_ONLY_MESSAGE };
   const after = {
@@ -324,7 +337,7 @@ export async function updateBasis(period: Period, _: BasisFormState, fd: FormDat
   };
   if (Object.values(after).some((n) => !Number.isFinite(n) || n <= 0 || !Number.isInteger(n)))
     return { error: "만점 기준은 1 이상의 정수로 입력하세요." };
-  mutate((db) => {
+  await mutate((db) => {
     const before = db.scoreConfig.basis[period];
     if (before.likes === after.likes && before.fans === after.fans && before.followers === after.followers) return;
     db.scoreConfig.history.unshift({ at: nowIso(), period, before, after, note: str(fd, "note") || undefined });
@@ -338,9 +351,12 @@ export async function updateBasis(period: Period, _: BasisFormState, fd: FormDat
 
 /** 실패 건 재수집 (목업: 즉시 성공 처리) */
 export async function retryFailure(runId: string, artistId: string, platform: string) {
+  await requireAdmin();
+  // 샘플(목업) 수집 기능: 운영 DB에서는 쓰지 않는다
+  if (getDataMode() === "supabase") return;
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const run = db.collectionRuns.find((r) => r.id === runId);
     const f = run?.failures.find((x) => x.artistId === artistId && x.platform === platform);
     if (!run || !f) return;
@@ -352,10 +368,13 @@ export async function retryFailure(runId: string, artistId: string, platform: st
 
 /** 수동 전체 재수집: 미해결 실패 해소 + 수집 대기 아티스트 최초 수집 */
 export async function runCollection() {
+  await requireAdmin();
+  // 샘플(목업) 수집 기능: 운영 DB에서는 쓰지 않는다
+  if (getDataMode() === "supabase") return;
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
   let newlyCollected: string[] = [];
-  mutate((db) => {
+  await mutate((db) => {
     const latest = [...db.collectionRuns].sort((a, b) => b.date.localeCompare(a.date))[0];
     latest?.failures.forEach((f) => (f.resolved = true));
     if (latest) latest.status = "success";
@@ -379,22 +398,26 @@ export async function runCollection() {
 }
 
 export async function collectArtist(id: string) {
+  await requireAdmin();
+  // 샘플(목업) 수집 기능: 운영 DB에서는 쓰지 않는다
+  if (getDataMode() === "supabase") return;
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const a = db.artists.find((x) => x.id === id);
     if (a) a.collected = true;
   });
-  if (!readDb().artists.find((a) => a.id === id)?.image) await syncImages([id]);
+  if (!(await readDb()).artists.find((a) => a.id === id)?.image) await syncImages([id]);
   refresh();
 }
 
 /* ---------------- 응원 ---------------- */
 
 export async function setCheerValid(id: string, valid: boolean) {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     const r = db.cheerRecords.find((x) => x.id === id);
     if (!r) return;
     r.valid = valid;
@@ -405,9 +428,10 @@ export async function setCheerValid(id: string, valid: boolean) {
 
 /** 의심 기록 일괄 무효 처리 */
 export async function invalidateFlagged() {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     db.cheerRecords.forEach((r) => {
       if (r.flag && r.valid) {
         r.valid = false;
@@ -421,14 +445,15 @@ export async function invalidateFlagged() {
 /* ---------------- 월간 종합 TOP 3 ---------------- */
 
 export async function confirmMonthlyTop3() {
+  await requireAdmin();
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  const db = readDb();
+  const db = await readDb();
   const chart = getChart("monthly", db);
   const entries = chart.entries
     .filter((e) => e.rank <= 3)
     .map((e) => ({ artistId: e.artist.id, rank: e.rank, total: Math.round(e.score.total * 100) / 100 }));
-  mutate((db) => {
+  await mutate((db) => {
     db.monthlyTop3 = db.monthlyTop3.filter((r) => r.month !== lastServiceMonth());
     db.monthlyTop3.unshift({ month: lastServiceMonth(), confirmedAt: nowIso(), entries });
   });
@@ -441,55 +466,72 @@ export type CollectState = { ok?: boolean; message?: string };
 
 /** 멜론 인디 일간 차트 수집 (수동 실행) */
 export async function collectMelonChart(): Promise<CollectState> {
+  await requireAdmin();
   const r = await collectMelonChartNow({ manual: true });
+  refresh();
+  return r;
+}
+
+/**
+ * 멜론 차트에 오른 미등록 아티스트를 바로 등록 (멜론 ID와 이름만. Spotify ID 등은 상세 화면에서 보완)
+ * melonIds를 여러 개 주면 한 번에 등록한다. 이미 같은 멜론 ID가 있으면 건너뛴다.
+ */
+export async function registerChartArtists(items: { melonId: string; name: string }[]) {
+  await requireAdmin();
+  if (isDemoMode()) return;
+  const valid = items.filter((x) => /^\d+$/.test(x.melonId) && x.name.trim());
+  await mutate((db) => {
+    for (const { melonId, name } of valid) {
+      if (db.artists.some((a) => a.platformIds.melon === melonId)) continue;
+      const { id, seq } = nextArtistId(db);
+      db.artists.push({
+        id,
+        seq,
+        name: name.trim(),
+        nameEn: "",
+        genre: "",
+        platformIds: { spotify: "", melon: melonId },
+        status: "active",
+        collected: false,
+        createdAt: nowIso(),
+      });
+    }
+  });
+  refresh();
+}
+
+/** 아티스트 수치(멜론 팬·좋아요, Spotify 팔로워) 수집 (수동 실행) */
+export async function collectArtistMetrics(): Promise<CollectState> {
+  await requireAdmin();
+  const r = await collectArtistMetricsNow({ manual: true });
   refresh();
   return r;
 }
 
 /** 차트 수치 출처 전환 (샘플 수치 ↔ 실제 수치) */
 export async function setMetricsSource(source: MetricsSource) {
+  await requireAdmin();
+  // 샘플(목업) 수집 기능: 운영 DB에서는 쓰지 않는다
+  if (getDataMode() === "supabase") return;
   // 데모 모드는 읽기 전용
   if (isDemoMode()) return;
-  mutate((db) => {
+  await mutate((db) => {
     db.settings.metricsSource = source;
   });
   refresh();
-}
-
-/** 한 아티스트·한 날짜의 수치를 합쳐 저장. undefined는 그대로 두고, null은 지운다 */
-function upsertSnapshot(
-  db: DB,
-  artistId: string,
-  date: string,
-  values: Partial<Record<MetricKey, number | null>>,
-  source: MetricSnapshot["source"],
-) {
-  let snap = db.metricSnapshots.find((s) => s.artistId === artistId && s.date === date);
-  if (!snap) {
-    snap = { artistId, date, source, updatedAt: nowIso() };
-    db.metricSnapshots.push(snap);
-  }
-  for (const [k, v] of Object.entries(values) as [MetricKey, number | null | undefined][]) {
-    if (v === undefined) continue;
-    if (v === null) delete snap[k];
-    else snap[k] = v;
-  }
-  snap.source = source;
-  snap.updatedAt = nowIso();
-  // 모든 값이 비면 기록 자체를 지운다
-  if (METRIC_FIELDS.every((f) => snap![f.key] == null)) db.metricSnapshots = db.metricSnapshots.filter((s) => s !== snap);
 }
 
 export type MetricsFormState = { saved?: number; errors?: string[] };
 
 /** 관리자 화면 표에서 입력한 수치 저장. 빈 칸은 미입력(지움) */
 export async function saveMetrics(_: MetricsFormState, fd: FormData): Promise<MetricsFormState> {
+  await requireAdmin();
   if (isDemoMode()) return { errors: [READ_ONLY_MESSAGE] };
   const date = String(fd.get("date") ?? "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { errors: ["기준일을 선택해 주세요."] };
   if (date > serviceToday()) return { errors: ["미래 날짜에는 입력할 수 없어요."] };
 
-  const db = readDb();
+  const db = await readDb();
   const errors: string[] = [];
   const updates: { artistId: string; values: Partial<Record<MetricKey, number | null>> }[] = [];
   for (const a of db.artists.filter((x) => x.status === "active")) {
@@ -505,7 +547,7 @@ export async function saveMetrics(_: MetricsFormState, fd: FormData): Promise<Me
   }
   if (errors.length) return { errors };
 
-  mutate((db) => updates.forEach((u) => upsertSnapshot(db, u.artistId, date, u.values, "manual")));
+  await mutate((db) => updates.forEach((u) => upsertSnapshot(db, u.artistId, date, u.values, "manual")));
   refresh();
   return { saved: updates.filter((u) => Object.values(u.values).some((v) => v != null)).length };
 }
@@ -514,20 +556,21 @@ export type ImportState = { imported?: number; errors?: string[] };
 
 /** CSV 업로드로 수치 저장. 빈 칸은 기존 값 유지 */
 export async function importMetricsCsv(_: ImportState, fd: FormData): Promise<ImportState> {
+  await requireAdmin();
   if (isDemoMode()) return { errors: [READ_ONLY_MESSAGE] };
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { errors: ["CSV 파일을 선택해 주세요."] };
   if (file.size > 1024 * 1024) return { errors: ["CSV 파일은 1MB 이하만 올릴 수 있어요."] };
   const fallbackDate = String(fd.get("date") ?? serviceToday());
 
-  const { rows, errors } = readMetricsCsv(await file.text(), readDb().artists, fallbackDate);
+  const { rows, errors } = readMetricsCsv(await file.text(), (await readDb()).artists, fallbackDate);
   const future = rows.filter((r) => r.date > serviceToday());
   if (future.length) errors.push(...future.map((r) => `${r.line}번째 줄: 미래 날짜에는 입력할 수 없어요.`));
   // 한 줄이라도 틀리면 아무것도 저장하지 않는다 (일부만 반영되는 혼란 방지)
   if (errors.length) return { errors };
   if (rows.length === 0) return { errors: ["저장할 수치가 없어요."] };
 
-  mutate((db) => rows.forEach((r) => upsertSnapshot(db, r.artistId, r.date, r.values, "csv")));
+  await mutate((db) => rows.forEach((r) => upsertSnapshot(db, r.artistId, r.date, r.values, "csv")));
   refresh();
   return { imported: rows.length };
 }

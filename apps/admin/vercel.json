@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/melon", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/melon?step=resume", "schedule": "10 3 * * *" },
+    { "path": "/api/cron/melon?step=resume&n=2", "schedule": "20 3 * * *" }
+  ]
+}

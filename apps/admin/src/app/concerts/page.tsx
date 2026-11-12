@@ -32,7 +32,7 @@ const norm = (s: string) => s.replace(/\s/g, "").toLowerCase();
 export default async function AdminConcerts({ searchParams }: { searchParams: Promise<{ status?: string; artist?: string }> }) {
   const { status = "pending", artist = "" } = await searchParams;
   const tab = (TABS.some((t) => t.key === status) ? status : "pending") as Tab;
-  const db = readDb();
+  const db = await readDb();
   const scoped = db.concerts.filter((c) => !artist || c.artistId === artist);
   const list = scoped
     .filter((c) => tab === "all" || tabOf(c) === tab)

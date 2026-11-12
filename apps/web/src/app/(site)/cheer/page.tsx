@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import CheerBoard from "./CheerBoard";
 import { getActiveArtists, getCheerData } from "@indie/core/data";
+import { readDb } from "@indie/core/db";
 import { Container, PageTitle } from "@indie/core/ui";
 
 export const metadata: Metadata = { title: "아티스트 응원 — INDIE CHART" };
 
-export default function CheerPage() {
-  const data = getCheerData();
+export default async function CheerPage() {
+  const db = await readDb();
+  const data = getCheerData(db);
   return (
     <Container>
       <PageTitle
@@ -21,7 +23,7 @@ export default function CheerPage() {
         }
       />
       <CheerBoard
-        artists={getActiveArtists()}
+        artists={getActiveArtists(db)}
         month={data.month}
         lastMonth={data.lastMonth}
         counts={data.current}

@@ -7,6 +7,9 @@ import { getOpenFailures } from "@indie/core/data";
 import { isDemoMode } from "@indie/core/data-mode";
 import { DemoModeProvider } from "@indie/core/data-mode-context";
 import { WEB_URL } from "@/lib/urls";
+import { headers } from "next/headers";
+import { adminAuthEnabled, getAdmin } from "@/lib/admin-auth";
+import { adminLogout } from "./login/actions";
 
 export const metadata: Metadata = { title: "관리자 — INDIE CHART", robots: { index: false, follow: false } };
 
@@ -15,8 +18,25 @@ export const dynamic = "force-dynamic";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0a0a0a" };
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const db = readDb();
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const authOn = adminAuthEnabled();
+  const admin = await getAdmin();
+  // 로그인 화면(또는 관리자 세션이 없을 때)은 메뉴 없이 그 화면만 보여 준다
+  if (pathname.startsWith("/login") || (authOn && !admin)) {
+    return (
+      <html lang="ko">
+        <head>
+          <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+          />
+        </head>
+        <body className="antialiased">{children}</body>
+      </html>
+    );
+  }
+  const db = await readDb();
   const demo = isDemoMode();
   const badges = {
     "/reports": db.artistReports.filter((r) => r.status === "pending").length,
@@ -51,7 +71,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <a href={WEB_URL} className="block text-white/70 hover:text-white mb-2">
                   서비스 화면 보기 ↗
                 </a>
-                {demo ? "데모 모드 · 읽기 전용" : "개발용"} · 관리자 인증 미적용
+                {admin ? (
+                  <form action={adminLogout} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-white/70">{admin.nickname} · 관리자</span>
+                    <button className="shrink-0 text-white/60 hover:text-white underline">로그아웃</button>
+                  </form>
+                ) : (
+                  <>{demo ? "데모 모드 · 읽기 전용" : "로컬 개발"} · 관리자 인증 없음</>
+                )}
               </div>
             </aside>
             <main className="min-w-0 px-4 sm:px-8 py-6 sm:py-8">

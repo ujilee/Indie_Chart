@@ -19,9 +19,14 @@
     "./ui": "./src/ui.tsx",
     "./theme.css": "./src/styles/theme.css",
     "./melon": "./src/melon.ts",
-    "./live": "./src/live.ts"
+    "./live": "./src/live.ts",
+    "./supabase-store": "./src/supabase-store.ts"
   },
   "peerDependencies": {
     "react": "^19"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.0"
   }
 }

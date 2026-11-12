@@ -4,9 +4,9 @@
  * - live: 멜론 인디 차트 수집 결과 + 관리자가 입력한 수치 (live.ts)
  */
 import { serviceMonth, lastServiceMonth, serviceToday, monthLabel } from "./constants";
-import { isDemoMode } from "./data-mode";
+import { getDataMode, isDemoMode } from "./data-mode";
 import { latestValue, liveChartSongs, liveMetrics, periodWindow, windowHasData } from "./live";
-import { onSeed, readDb } from "./db";
+import { onSeed } from "./db";
 import { computeScore, isConcertValid, rankWithTies, songRankPoints } from "./score";
 import { mulberry32, popularityOf, type DB } from "./seed";
 import type {
@@ -27,9 +27,11 @@ export function periodLabels(period: Period) {
   return { label: periodWindow(period, 0).label, prevLabel: periodWindow(period, -1).label };
 }
 
-/** 차트 수치 출처. 데모 모드는 항상 샘플 수치 */
-export function getMetricsSource(db: DB = readDb()) {
-  return isDemoMode() ? "mock" : db.settings.metricsSource;
+/** 차트 수치 출처. 데모 모드는 항상 샘플 수치, 운영 DB는 항상 실제 수치 */
+export function getMetricsSource(db: DB) {
+  if (isDemoMode()) return "mock";
+  if (getDataMode() === "supabase") return "live";
+  return db.settings.metricsSource;
 }
 
 /** 직전 기간 차트에 없던 신규 진입 아티스트 (목업) */
@@ -44,28 +46,28 @@ const SEED_BASE: Record<Period, number> = { daily: 11, weekly: 22, monthly: 33, 
 
 /* ---------------- 아티스트 / 공연 ---------------- */
 
-export function getArtists(db: DB = readDb()) {
+export function getArtists(db: DB) {
   return db.artists;
 }
 
-export function getActiveArtists(db: DB = readDb()) {
+export function getActiveArtists(db: DB) {
   return db.artists.filter((a) => a.status === "active");
 }
 
-export function getArtist(id: string, db: DB = readDb()) {
+export function getArtist(id: string, db: DB) {
   return db.artists.find((a) => a.id === id);
 }
 
-export function getArtistConcerts(artistId: string, db: DB = readDb()) {
+export function getArtistConcerts(artistId: string, db: DB) {
   return db.concerts.filter((c) => c.artistId === artistId).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function countValidConcerts(artistId: string, db: DB = readDb(), asOf = serviceToday()) {
+export function countValidConcerts(artistId: string, db: DB, asOf = serviceToday()) {
   return db.concerts.filter((c) => c.artistId === artistId && isConcertValid(c, asOf)).length;
 }
 
 /** 가장 최근 수집에서 아직 해결되지 않은 실패 */
-export function getOpenFailures(db: DB = readDb()) {
+export function getOpenFailures(db: DB) {
   const latest = [...db.collectionRuns].sort((a, b) => b.date.localeCompare(a.date))[0];
   return latest ? latest.failures.filter((f) => !f.resolved) : [];
 }
@@ -115,7 +117,7 @@ function buildRanking(db: DB, period: Period, metrics: PeriodMetrics[]) {
   return rankWithTies(scored, (s) => s.score.total, (s) => s.artist.name);
 }
 
-export function getChart(period: Period, db: DB = readDb()): Chart {
+export function getChart(period: Period, db: DB): Chart {
   // 차트 대상: 활성 + 최초 데이터 수집 완료
   const eligible = db.artists.filter((a) => a.status === "active" && a.collected);
   const { label } = periodLabels(period);
@@ -171,7 +173,7 @@ onSeed((db) => {
 });
 
 /** 월간 최종 종합 TOP 3 (가장 최근 확정 결과) */
-export function getMonthlyTop3(db: DB = readDb()) {
+export function getMonthlyTop3(db: DB) {
   const latest = [...db.monthlyTop3].sort((a, b) => b.month.localeCompare(a.month))[0];
   if (!latest) return { month: null, entries: [] };
   return {
@@ -185,7 +187,7 @@ export function getMonthlyTop3(db: DB = readDb()) {
 /* ---------------- 응원 ---------------- */
 
 /** 이번 달 아티스트별 누적 유효 응원 횟수 */
-export function getMonthlyCheerCounts(db: DB = readDb(), month = serviceMonth()) {
+export function getMonthlyCheerCounts(db: DB, month = serviceMonth()) {
   const counts: Record<string, number> = month === serviceMonth() ? { ...db.cheerBase } : {};
   for (const r of db.cheerRecords) {
     if (r.valid && r.date.startsWith(month)) counts[r.artistId] = (counts[r.artistId] ?? 0) + 1;
@@ -202,7 +204,7 @@ export function rankCheers(counts: Record<string, number>, artists: Artist[]): C
   }));
 }
 
-export function getCheerData(db: DB = readDb()) {
+export function getCheerData(db: DB) {
   const last = [...db.cheerTop3].sort((a, b) => b.month.localeCompare(a.month))[0];
   return {
     month: monthLabel(serviceMonth()),
@@ -218,7 +220,7 @@ export function getCheerData(db: DB = readDb()) {
 
 /* ---------------- 아티스트 상세 ---------------- */
 
-export function getArtistSnapshot(artistId: string, db: DB = readDb()): ArtistSnapshot {
+export function getArtistSnapshot(artistId: string, db: DB): ArtistSnapshot {
   const artist = getArtist(artistId, db)!;
   const daily = getChart("daily", db).entries.find((e) => e.artist.id === artistId);
   if (!artist.collected) {
@@ -271,7 +273,7 @@ export function getArtistSnapshot(artistId: string, db: DB = readDb()): ArtistSn
   };
 }
 
-export function getArtistRanks(artistId: string, db: DB = readDb()) {
+export function getArtistRanks(artistId: string, db: DB) {
   return (["daily", "weekly", "monthly", "yearly"] as Period[]).map((period) => {
     const chart = getChart(period, db);
     const e = chart.entries.find((x) => x.artist.id === artistId);

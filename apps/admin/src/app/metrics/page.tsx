@@ -11,7 +11,7 @@ export default async function AdminMetrics({ searchParams }: { searchParams: Pro
   const today = serviceToday();
   const raw = (await searchParams).date;
   const date = raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) && raw <= today ? raw : today;
-  const db = readDb();
+  const db = await readDb();
   const artists = db.artists.filter((a) => a.status === "active").sort((a, b) => a.name.localeCompare(b.name, "ko"));
   const rows = artists.map((a) => {
     const snap = db.metricSnapshots.find((s) => s.artistId === a.id && s.date === date);

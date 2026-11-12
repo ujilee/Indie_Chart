@@ -5,10 +5,10 @@ import { CSV_COLUMNS } from "@/lib/metrics-csv";
 export const dynamic = "force-dynamic";
 
 /** 수치 입력용 CSV 양식 (등록된 활성 아티스트 + 기준일) */
-export function GET(req: Request) {
+export async function GET(req: Request) {
   const raw = new URL(req.url).searchParams.get("date");
   const date = raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : serviceToday();
-  const artists = readDb()
+  const artists = (await readDb())
     .artists.filter((a) => a.status === "active")
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
   const quote = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);

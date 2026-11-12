@@ -5,9 +5,21 @@ import { useActionState } from "react";
 import { useDemoMode } from "@indie/core/data-mode-context";
 import { DemoNotice, Field, inputClass, primaryBtn } from "@/components/form";
 import { login, signup, type AuthFormState } from "@/app/actions";
+import SocialLogin, { type SocialProvider } from "./SocialLogin";
 
 /** 이메일 로그인 · 회원가입 폼 */
-export default function AuthForm({ mode, redirectTo }: { mode: "login" | "signup"; redirectTo: string }) {
+export default function AuthForm({
+  mode,
+  redirectTo,
+  social,
+  notice,
+}: {
+  mode: "login" | "signup";
+  redirectTo: string;
+  /** 소셜 로그인 버튼 (운영 DB 모드에서만 전달) */
+  social?: SocialProvider[];
+  notice?: string;
+}) {
   const isSignup = mode === "signup";
   const [state, action, pending] = useActionState<AuthFormState, FormData>(isSignup ? signup : login, {});
   const demo = useDemoMode();
@@ -24,7 +36,14 @@ export default function AuthForm({ mode, redirectTo }: { mode: "login" | "signup
         <p className="mt-1 text-sm text-muted">하루 한 번의 응원이 아티스트의 순위에 반영돼요.</p>
       </div>
 
-      <form action={action} noValidate className="mt-10 space-y-5">
+      {social && <SocialLogin enabled={social} redirectTo={redirectTo} />}
+      {notice && (
+        <p role="alert" className="mt-6 text-sm text-up text-center">
+          {notice}
+        </p>
+      )}
+
+      <form action={action} noValidate className={`${social ? "mt-6" : "mt-10"} space-y-5`}>
         <input type="hidden" name="redirect" value={redirectTo} />
         <Field label="이메일" required error={err.email}>
           <input
@@ -80,7 +99,11 @@ export default function AuthForm({ mode, redirectTo }: { mode: "login" | "signup
             {isSignup ? "회원 정보가 저장되지 않아 가입할 수 없어요." : "회원 정보가 없어 로그인할 수 없어요."}
           </DemoNotice>
         ) : (
-          state.message && <p role="alert" className="text-sm text-up">{state.message}</p>
+          state.message && (
+            <p role="alert" className={`text-sm ${state.sent ? "text-fg font-semibold" : "text-up"}`}>
+              {state.message}
+            </p>
+          )
         )}
         <button type="submit" disabled={pending || demo} className={`${primaryBtn} w-full`}>
           {pending ? (isSignup ? "가입 중…" : "로그인 중…") : isSignup ? "가입하기" : "로그인"}

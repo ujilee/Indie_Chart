@@ -21,7 +21,7 @@ function Score({ value }: { value: number }) {
 export default async function AdminCharts({ searchParams }: { searchParams: Promise<{ period?: string; q?: string }> }) {
   const { period = "daily", q = "" } = await searchParams;
   const p = (PERIODS.some((x) => x.key === period) ? period : "daily") as Period;
-  const db = readDb();
+  const db = await readDb();
   const chart = getChart(p, db);
   const failures = p === "daily" ? getOpenFailures(db) : [];
   const pendingArtists = db.artists.filter((a) => a.status === "active" && !a.collected);

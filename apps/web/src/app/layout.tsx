@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const db = readDb();
+  const db = await readDb();
   const user = await getCurrentUser(db);
   // 오늘 이미 응원했는지 (1인 하루 1회)
   const todayCheer = user ? (db.cheerRecords.find((r) => r.userId === user.id && r.date === serviceToday())?.artistId ?? null) : null;

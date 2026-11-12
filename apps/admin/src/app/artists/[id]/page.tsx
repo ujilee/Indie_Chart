@@ -6,6 +6,7 @@ import { Avatar } from "@indie/core/ui";
 import { PERIODS } from "@indie/core/types";
 import { countValidConcerts, getArtist, getArtistConcerts, getChart, getMonthlyCheerCounts } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
+import { getDataMode } from "@indie/core/data-mode";
 import { collectArtist, setArtistStatus } from "../../actions";
 import ArtistForm from "../ArtistForm";
 import ImageSyncButton from "../../ImageSyncButton";
@@ -20,7 +21,7 @@ export default async function EditArtist({
 }) {
   const { id } = await params;
   const { created } = await searchParams;
-  const db = readDb();
+  const db = await readDb();
   const artist = getArtist(id, db);
   if (!artist) notFound();
 
@@ -45,11 +46,15 @@ export default async function EditArtist({
                   서비스 화면 ↗
                 </a>
               )}
-              {artist.status === "active" && !artist.collected && (
+              {artist.status === "active" && !artist.collected && (getDataMode() === "supabase" ? (
+                <Link href="/metrics" className={btn.primary}>
+                  수치 입력
+                </Link>
+              ) : (
                 <ActionForm action={collectArtist.bind(null, artist.id)}>
                   <button className={btn.primary}>최초 데이터 수집</button>
                 </ActionForm>
-              )}
+              ))}
               <ActionForm action={setArtistStatus.bind(null, artist.id, artist.status === "active" ? "excluded" : "active")}>
                 <button className={artist.status === "active" ? btn.danger : btn.primary}>
                   {artist.status === "active" ? "차트에서 제외" : "차트 대상으로 복구"}
@@ -61,7 +66,7 @@ export default async function EditArtist({
       </div>
       {created && (
         <p className="mb-4 rounded-xl bg-fg text-bg px-4 py-3 text-sm">
-          아티스트가 등록되었어요. 최초 데이터 수집이 끝나면 차트에 반영돼요.
+          아티스트가 등록되었어요. {getDataMode() === "supabase" ? "수치 입력에서 첫 수치를 넣으면" : "최초 데이터 수집이 끝나면"} 차트에 반영돼요.
         </p>
       )}
 
