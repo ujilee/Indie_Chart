@@ -10,7 +10,7 @@ import {
   validatePassword,
   verifyPassword,
 } from "@indie/core/auth";
-import { TODAY, nowIso } from "@indie/core/constants";
+import { serviceToday, nowIso } from "@indie/core/constants";
 import { READ_ONLY_MESSAGE, isDemoMode } from "@indie/core/data-mode";
 import { mutate, newId, readDb } from "@indie/core/db";
 import {
@@ -95,7 +95,7 @@ export async function submitConcertReport(v: ConcertReportInput): Promise<Action
     err.artistId = "아티스트를 선택해 주세요.";
   if (!v.title.trim()) err.title = "공연명을 입력해 주세요.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date)) err.date = "공연 날짜를 선택해 주세요.";
-  else if (v.date < TODAY) err.date = "이미 종료된 공연은 제보할 수 없어요.";
+  else if (v.date < serviceToday()) err.date = "이미 종료된 공연은 제보할 수 없어요.";
   if (!v.venue.trim()) err.venue = "공연장명을 입력해 주세요.";
   if (!v.url.trim()) err.url = "공식 공연정보 또는 예매 URL을 입력해 주세요.";
   else if (!isHttpUrl(v.url)) err.url = "올바른 URL 형식이 아니에요. (https://로 시작)";
@@ -204,8 +204,8 @@ export async function cheerArtist(artistId: string): Promise<"ok" | "used" | "in
   const result = mutate((db) => {
     if (!db.artists.some((a) => a.id === artistId && a.status === "active")) return "invalid" as const;
     // 1인 하루 총 1회
-    if (db.cheerRecords.some((r) => r.userId === userId && r.date === TODAY)) return "used" as const;
-    db.cheerRecords.push({ id: newId("ch"), userId, artistId, date: TODAY, createdAt: nowIso(), valid: true });
+    if (db.cheerRecords.some((r) => r.userId === userId && r.date === serviceToday())) return "used" as const;
+    db.cheerRecords.push({ id: newId("ch"), userId, artistId, date: serviceToday(), createdAt: nowIso(), valid: true });
     return "ok" as const;
   });
   if (result === "ok") revalidatePath("/", "layout");

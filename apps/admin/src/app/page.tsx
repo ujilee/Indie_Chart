@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AdminHeader, Card, Pill, Stat, btn, fmtDateTime } from "@/components/ui";
 import { Avatar } from "@indie/core/ui";
-import { LAST_MONTH, monthLabel } from "@indie/core/constants";
+import { lastServiceMonth, monthLabel } from "@indie/core/constants";
 import { getArtist, getChart, getMonthlyCheerCounts, getOpenFailures, rankCheers, getActiveArtists } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 
@@ -16,7 +16,7 @@ export default function AdminDashboard() {
   const flagged = db.cheerRecords.filter((r) => r.flag && r.valid);
   const daily = getChart("daily", db).entries.slice(0, 5);
   const cheerTop = rankCheers(getMonthlyCheerCounts(db), getActiveArtists(db)).slice(0, 5);
-  const top3Confirmed = db.monthlyTop3.some((r) => r.month === LAST_MONTH);
+  const top3Confirmed = db.monthlyTop3.some((r) => r.month === lastServiceMonth());
 
   return (
     <>
@@ -42,7 +42,7 @@ export default function AdminDashboard() {
             <Todo href="/collection" label="수집 실패 재수집" count={openFailures.length} />
             <Todo href="/collection" label="최초 수집 대기 아티스트" count={uncollected.length} />
             <Todo href="/cheers" label="부정 응원 의심 기록 검토" count={flagged.length} />
-            <Todo href="/top3" label={`${monthLabel(LAST_MONTH)} 월간 종합 TOP 3 확정`} count={top3Confirmed ? 0 : 1} doneLabel="확정 완료" />
+            <Todo href="/top3" label={`${monthLabel(lastServiceMonth())} 월간 종합 TOP 3 확정`} count={top3Confirmed ? 0 : 1} doneLabel="확정 완료" />
           </ul>
         </Card>
 

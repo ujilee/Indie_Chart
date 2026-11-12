@@ -58,6 +58,9 @@ export function readDb(): DB {
   const db = JSON.parse(fs.readFileSync(FILE, "utf8")) as DB;
   // 회원 기능 추가 전에 만들어진 저장소 파일 호환
   db.users ??= [];
+  db.metricSnapshots ??= [];
+  db.melonCharts ??= [];
+  db.settings ??= { metricsSource: "mock" };
   cache = { mtime, db };
   return db;
 }

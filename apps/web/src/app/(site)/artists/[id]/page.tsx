@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import CheerButton from "@/components/CheerButton";
 import { Avatar, Container, RankChange, formatGain, formatNumber } from "@indie/core/ui";
-import { TODAY } from "@indie/core/constants";
+import { serviceToday } from "@indie/core/constants";
 import {
   countValidConcerts,
   getArtist,
@@ -33,7 +33,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
   const daily = ranks[0];
   const snap = getArtistSnapshot(id);
   // 사용자에게는 향후 개최 예정인 승인 공연만 노출
-  const upcoming = getArtistConcerts(id).filter((c) => c.status === "approved" && c.date >= TODAY);
+  const upcoming = getArtistConcerts(id).filter((c) => c.status === "approved" && c.date >= serviceToday());
   const validCount = countValidConcerts(id);
 
   return (
@@ -71,7 +71,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
               <div className="mt-2 flex items-baseline gap-3">
                 <span className="text-3xl font-extrabold tabular-nums">{r.rank ?? "-"}</span>
                 <span className="text-sm">{r.rank ? "위" : ""}</span>
-                {r.rank && <RankChange rank={r.rank} prevRank={r.prevRank} isNew={r.prevRank == null} />}
+                {r.rank && <RankChange rank={r.rank} prevRank={r.prevRank} isNew={r.comparable && r.prevRank == null} />}
               </div>
             </div>
           ))}

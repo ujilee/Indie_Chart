@@ -2,7 +2,7 @@ import { ActionForm } from "@/components/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, EmptyRow, Pill, Table, Tabs, adminInput, btn, fmtDateTime } from "@/components/ui";
 import { RejectForm } from "@/components/RejectForm";
-import { TODAY } from "@indie/core/constants";
+import { serviceToday } from "@indie/core/constants";
 import { countValidConcerts, getArtist } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 import { CONCERT_WINDOW_DAYS, concertBonus, daysBetween, isConcertValid } from "@indie/core/score";
@@ -23,8 +23,8 @@ type Tab = (typeof TABS)[number]["key"];
 
 function tabOf(c: Concert): Tab {
   if (c.status !== "approved") return c.status as Tab;
-  if (c.date < TODAY) return "past";
-  return isConcertValid(c, TODAY) ? "valid" : "upcoming";
+  if (c.date < serviceToday()) return "past";
+  return isConcertValid(c, serviceToday()) ? "valid" : "upcoming";
 }
 
 const norm = (s: string) => s.replace(/\s/g, "").toLowerCase();
@@ -63,7 +63,7 @@ export default async function AdminConcerts({ searchParams }: { searchParams: Pr
           공연 직접 등록 <span className="text-muted group-open:rotate-45 transition-transform">+</span>
         </summary>
         <div className="border-t border-line">
-          <ConcertCreateForm artists={db.artists.filter((a) => a.status === "active").map((a) => ({ id: a.id, name: a.name }))} today={TODAY} />
+          <ConcertCreateForm artists={db.artists.filter((a) => a.status === "active").map((a) => ({ id: a.id, name: a.name }))} today={serviceToday()} />
         </div>
       </details>
 
@@ -96,9 +96,9 @@ export default async function AdminConcerts({ searchParams }: { searchParams: Pr
               {list.length === 0 && <EmptyRow colSpan={7}>해당하는 공연이 없어요.</EmptyRow>}
               {list.map((c) => {
                 const a = getArtist(c.artistId, db);
-                const d = daysBetween(TODAY, c.date);
+                const d = daysBetween(serviceToday(), c.date);
                 const dup = c.status === "pending" ? duplicateOf(c) : undefined;
-                const valid = isConcertValid(c, TODAY);
+                const valid = isConcertValid(c, serviceToday());
                 return (
                   <tr key={c.id}>
                     <td className="whitespace-nowrap">

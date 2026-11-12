@@ -2,7 +2,7 @@ import { ActionForm } from "@/components/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, Pill, Table, btn, fmtDateTime, fmtScore } from "@/components/ui";
 import { Avatar } from "@indie/core/ui";
-import { LAST_MONTH, monthLabel } from "@indie/core/constants";
+import { lastServiceMonth, monthLabel } from "@indie/core/constants";
 import { getArtist, getChart, getOpenFailures } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 import { confirmMonthlyTop3 } from "../actions";
@@ -11,7 +11,7 @@ export default function AdminTop3() {
   const db = readDb();
   const chart = getChart("monthly", db);
   const candidates = chart.entries.filter((e) => e.rank <= 5);
-  const confirmed = db.monthlyTop3.find((r) => r.month === LAST_MONTH);
+  const confirmed = db.monthlyTop3.find((r) => r.month === lastServiceMonth());
   const history = [...db.monthlyTop3].sort((a, b) => b.month.localeCompare(a.month));
   const blocked = getOpenFailures(db).length > 0;
 
@@ -23,7 +23,7 @@ export default function AdminTop3() {
         actions={
           <ActionForm action={confirmMonthlyTop3}>
             <button disabled={blocked} className={`${btn.primary} disabled:bg-surface disabled:text-subtle`}>
-              {confirmed ? `${monthLabel(LAST_MONTH)} 재확정` : `${monthLabel(LAST_MONTH)} 집계 확정`}
+              {confirmed ? `${monthLabel(lastServiceMonth())} 재확정` : `${monthLabel(lastServiceMonth())} 집계 확정`}
             </button>
           </ActionForm>
         }
@@ -32,7 +32,7 @@ export default function AdminTop3() {
 
       <div className="grid xl:grid-cols-2 gap-4 items-start">
         <Card
-          title={`${monthLabel(LAST_MONTH)} 월간 종합 순위`}
+          title={`${monthLabel(lastServiceMonth())} 월간 종합 순위`}
           actions={confirmed ? <Pill tone="dark">확정 · {fmtDateTime(confirmed.confirmedAt)}</Pill> : <Pill tone="warn">미확정</Pill>}
         >
           <Table head={["순위", "아티스트", "기본", "공연", "최종", ""]} minWidth={480}>

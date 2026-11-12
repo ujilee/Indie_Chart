@@ -14,7 +14,7 @@ export default function Home() {
       rows: c.entries.map((e) => ({
         rank: e.rank,
         prevRank: e.prevRank,
-        isNew: e.prevRank == null,
+        isNew: c.comparable && e.prevRank == null,
         artist: e.artist,
       })),
     };
@@ -86,7 +86,7 @@ export default function Home() {
 
       {/* 차트 */}
       <section className="mt-14">
-        <ChartBoard charts={charts} updatedAt="2026.11.11 01:00" />
+        <ChartBoard charts={charts} updatedAt={getChart("daily").updatedAt} />
       </section>
 
       {/* 응원하기 유도 */}

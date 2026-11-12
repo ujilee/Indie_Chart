@@ -59,6 +59,10 @@ export interface PeriodMetrics {
   artistId: string;
   /** 멜론 곡 순위 점수 (0~100, 상위 5곡 기준, 기간 일별 평균) */
   songRankPoints: number;
+  /** 기간 중 멜론 인디 차트 최고 순위 (차트인 곡이 없으면 null) */
+  bestSongRank?: number | null;
+  /** 기간 중 차트에 오른 곡 수 */
+  chartSongs?: number;
   /** 멜론 전체 곡 좋아요 증가량 (null = 미수집) */
   likeGain: number | null;
   /** 멜론 팬맺기 증가량 */
@@ -95,6 +99,8 @@ export interface Chart {
   /** 화면 표기용 집계 기간 라벨 */
   label: string;
   updatedAt: string;
+  /** 비교 기간 데이터가 있어 순위 변동(▲▼·NEW)을 표시할 수 있는지 */
+  comparable: boolean;
   entries: ChartEntry[];
 }
 
@@ -183,10 +189,49 @@ export interface CollectionRun {
   date: string;
   startedAt: string;
   finishedAt: string;
-  status: "success" | "partial";
+  status: "success" | "partial" | "failed";
   artistCount: number;
   failures: CollectionFailure[];
   manual?: boolean;
+  /** mock: 목업 수집 / melon-chart: 멜론 인디 차트 실제 수집 */
+  kind?: "mock" | "melon-chart";
+  /** 수집 전체가 실패했을 때 사유 */
+  error?: string;
+  /** 실제 수집 결과 요약 */
+  note?: string;
+}
+
+/** 차트 수치 출처: mock = 시드로 만든 샘플 수치, live = 실제 수집·입력한 수치 */
+export type MetricsSource = "mock" | "live";
+
+/** 아티스트별 일자 수치 (관리자 입력 또는 CSV 업로드). 값이 없는 항목은 미입력 */
+export interface MetricSnapshot {
+  artistId: string;
+  /** 기준일 YYYY-MM-DD (KST) */
+  date: string;
+  melonFans?: number;
+  /** 멜론 전체 곡 좋아요 합계 */
+  melonLikes?: number;
+  spotifyFollowers?: number;
+  /** Spotify 월별 리스너 (점수에는 쓰지 않고 참고용) */
+  spotifyMonthlyListeners?: number;
+  source: "manual" | "csv";
+  updatedAt: string;
+}
+
+/** 멜론 인디 일간 차트 수집 결과 */
+export interface MelonChartSnapshot {
+  /** 멜론이 표기한 차트 기준일 YYYY-MM-DD */
+  chartDate: string;
+  collectedAt: string;
+  entries: MelonChartEntry[];
+}
+
+export interface MelonChartEntry {
+  rank: number;
+  songId: string;
+  title: string;
+  artists: { melonId: string; name: string }[];
 }
 
 export interface MonthlyTop3Result {

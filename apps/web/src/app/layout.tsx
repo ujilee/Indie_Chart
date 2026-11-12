@@ -4,7 +4,7 @@ import { SessionProvider } from "@/lib/session";
 import { ToastProvider } from "@/components/Toast";
 import { isDemoMode } from "@indie/core/data-mode";
 import { DemoModeProvider } from "@indie/core/data-mode-context";
-import { TODAY } from "@indie/core/constants";
+import { serviceToday } from "@indie/core/constants";
 import { readDb } from "@indie/core/db";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -26,7 +26,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const db = readDb();
   const user = await getCurrentUser(db);
   // 오늘 이미 응원했는지 (1인 하루 1회)
-  const todayCheer = user ? (db.cheerRecords.find((r) => r.userId === user.id && r.date === TODAY)?.artistId ?? null) : null;
+  const todayCheer = user ? (db.cheerRecords.find((r) => r.userId === user.id && r.date === serviceToday())?.artistId ?? null) : null;
 
   return (
     <html lang="ko">

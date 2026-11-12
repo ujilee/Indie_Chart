@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import ConcertReportForm from "./ConcertReportForm";
 import { Container, PageTitle } from "@indie/core/ui";
-import { TODAY } from "@indie/core/constants";
+import { serviceToday } from "@indie/core/constants";
 import { getActiveArtists } from "@indie/core/data";
 
 export const metadata: Metadata = { title: "공연정보 제보 — INDIE CHART" };
@@ -25,7 +25,7 @@ export default async function ConcertReportPage({ searchParams }: { searchParams
       <ConcertReportForm
         artists={artists.map((a) => ({ id: a.id, name: a.name }))}
         defaultArtistId={artists.some((a) => a.id === artist) ? artist! : ""}
-        today={TODAY}
+        today={serviceToday()}
       />
     </Container>
   );

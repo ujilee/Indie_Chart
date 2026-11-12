@@ -1,7 +1,7 @@
 import { ActionForm } from "@/components/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, EmptyRow, Pill, Table, Tabs, btn, fmtDateTime, fmtScore } from "@/components/ui";
-import { CURRENT_MONTH, monthLabel } from "@indie/core/constants";
+import { serviceMonth, monthLabel } from "@indie/core/constants";
 import { getArtist, getChart, getMonthlyCheerCounts } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 import { WEIGHTS, cheerPoints } from "@indie/core/score";
@@ -35,7 +35,7 @@ export default async function AdminCheers({ searchParams }: { searchParams: Prom
     <>
       <AdminHeader
         title="응원 관리"
-        desc={`응원은 1인 하루 1회. ${monthLabel(CURRENT_MONTH)} 누적 유효 응원 ${monthTotal.toLocaleString()}회`}
+        desc={`응원은 1인 하루 1회. ${monthLabel(serviceMonth())} 누적 유효 응원 ${monthTotal.toLocaleString()}회`}
       />
 
       <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">

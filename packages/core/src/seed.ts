@@ -2,7 +2,7 @@
  * 목업 초기 데이터. 백엔드/크롤러 연동 전까지 로컬 JSON 저장소의 시드로 사용.
  */
 import { DEFAULT_FULL_SCORE_BASIS } from "./score";
-import { TODAY } from "./constants";
+import { serviceToday } from "./constants";
 import { SEED_ARTISTS } from "./seed-artists";
 import type {
   Artist,
@@ -16,6 +16,9 @@ import type {
   FullScoreBasis,
   BasisChange,
   User,
+  MetricSnapshot,
+  MelonChartSnapshot,
+  MetricsSource,
 } from "./types";
 
 export interface DB {
@@ -28,6 +31,11 @@ export interface DB {
   cheerRecords: CheerRecord[];
   /** 회원 */
   users: User[];
+  /** 아티스트별 일자 수치 (관리자 입력) */
+  metricSnapshots: MetricSnapshot[];
+  /** 멜론 인디 일간 차트 수집 결과 */
+  melonCharts: MelonChartSnapshot[];
+  settings: { metricsSource: MetricsSource };
   scoreConfig: { basis: Record<Period, FullScoreBasis>; history: BasisChange[] };
   collectionRuns: CollectionRun[];
   monthlyTop3: MonthlyTop3Result[];
@@ -65,7 +73,7 @@ const VENUES = ["롤링홀", "웨스트브릿지", "벨로주 홍대", "언플�
 
 export function createSeed(): DB {
   const idRand = mulberry32(7);
-  const artists: Artist[] = SEED_ARTISTS.map(({ name, nameEn, genre, spotify, image }, i) => ({
+  const artists: Artist[] = SEED_ARTISTS.map(({ name, nameEn, genre, spotify, melon, image }, i) => ({
     id: `a${String(i + 1).padStart(3, "0")}`,
     seq: i + 1,
     name,
@@ -74,7 +82,7 @@ export function createSeed(): DB {
     image,
     imageSource: image ? ("spotify" as const) : undefined,
     imageUpdatedAt: image ? "2026-11-11T00:00:00.000Z" : undefined,
-    platformIds: { spotify },
+    platformIds: melon ? { spotify, melon } : { spotify },
     status: "active",
     collected: true,
     createdAt: "2026-08-01T00:00:00.000Z",
@@ -95,15 +103,15 @@ export function createSeed(): DB {
           k % 2 === 0
             ? `${a.name} 단독 공연 〈${["밤", "숲", "바다", "도시", "계절"][k % 5]}〉`
             : `인디 라이브 클럽 데이 Vol.${12 + k}`,
-        date: addDays(TODAY, offset),
+        date: addDays(serviceToday(), offset),
         time: ["19:00", "19:30", "20:00", "18:00"][k % 4],
         venue: VENUES[Math.floor(concertRand() * VENUES.length)],
         address: "서울 마포구",
         url: "https://tickets.example.com/indie",
         status: k === 3 && i % 4 === 0 ? "canceled" : "approved",
         source: k % 3 === 0 ? "admin" : "report",
-        createdAt: `${addDays(TODAY, -20 + k)}T03:00:00.000Z`,
-        reviewedAt: `${addDays(TODAY, -19 + k)}T03:00:00.000Z`,
+        createdAt: `${addDays(serviceToday(), -20 + k)}T03:00:00.000Z`,
+        reviewedAt: `${addDays(serviceToday(), -19 + k)}T03:00:00.000Z`,
       });
     }
   });
@@ -113,7 +121,7 @@ export function createSeed(): DB {
       id: "c-pending-1",
       artistId: "a005",
       title: "낮잠 클럽 연말 공연 〈늦잠〉",
-      date: addDays(TODAY, 18),
+      date: addDays(serviceToday(), 18),
       time: "19:00",
       venue: "롤링홀",
       address: "서울 마포구 어울마당로 35",
@@ -121,22 +129,22 @@ export function createSeed(): DB {
       description: "2회차 공연 중 1회차",
       status: "pending",
       source: "report",
-      createdAt: `${addDays(TODAY, -1)}T09:12:00.000Z`,
+      createdAt: `${addDays(serviceToday(), -1)}T09:12:00.000Z`,
     },
     {
       id: "c-pending-2",
       artistId: "a007",
       title: "유리상점 단독 공연",
-      date: addDays(TODAY, 45),
+      date: addDays(serviceToday(), 45),
       venue: "벨로주 홍대",
       url: "https://tickets.example.com/glassstore",
       status: "pending",
       source: "report",
-      createdAt: `${TODAY}T00:40:00.000Z`,
+      createdAt: `${serviceToday()}T00:40:00.000Z`,
     },
   );
   // 기존 승인 공연과 중복으로 보이는 제보
-  const dupTarget = concerts.find((c) => c.artistId === "a001" && c.status === "approved" && c.date >= TODAY);
+  const dupTarget = concerts.find((c) => c.artistId === "a001" && c.status === "approved" && c.date >= serviceToday());
   if (dupTarget) {
     concerts.push({
       ...dupTarget,
@@ -144,7 +152,7 @@ export function createSeed(): DB {
       title: `${dupTarget.title} (중복 제보)`,
       status: "pending",
       source: "report",
-      createdAt: `${TODAY}T01:30:00.000Z`,
+      createdAt: `${serviceToday()}T01:30:00.000Z`,
       reviewedAt: undefined,
     });
   }
@@ -155,7 +163,7 @@ export function createSeed(): DB {
       name: "검은 바다",
       spotifyId: fakeSpotifyId(idRand),
       melonId: "2201394",
-      createdAt: `${addDays(TODAY, -2)}T05:20:00.000Z`,
+      createdAt: `${addDays(serviceToday(), -2)}T05:20:00.000Z`,
       status: "pending",
     },
     {
@@ -163,23 +171,23 @@ export function createSeed(): DB {
       name: "여름 정거장",
       spotifyId: fakeSpotifyId(idRand),
       youtube: "@summerstation",
-      createdAt: `${addDays(TODAY, -1)}T11:02:00.000Z`,
+      createdAt: `${addDays(serviceToday(), -1)}T11:02:00.000Z`,
       status: "pending",
     },
     {
       id: "r003",
       name: artists[0].nameEn, // 등록된 아티스트를 영문명으로 다시 제보한 경우
       spotifyId: artists[0].platformIds.spotify, // 등록된 아티스트와 Spotify ID 중복
-      createdAt: `${TODAY}T00:15:00.000Z`,
+      createdAt: `${serviceToday()}T00:15:00.000Z`,
       status: "pending",
     },
     {
       id: "r004",
       name: "블루노트",
       spotifyId: fakeSpotifyId(idRand),
-      createdAt: `${addDays(TODAY, -6)}T08:00:00.000Z`,
+      createdAt: `${addDays(serviceToday(), -6)}T08:00:00.000Z`,
       status: "rejected",
-      reviewedAt: `${addDays(TODAY, -5)}T02:00:00.000Z`,
+      reviewedAt: `${addDays(serviceToday(), -5)}T02:00:00.000Z`,
       rejectReason: "해외 아티스트 (서비스 대상 아님)",
     },
   ];
@@ -191,7 +199,7 @@ export function createSeed(): DB {
   );
   const cheerRecords: CheerRecord[] = [];
   for (let d = 0; d < 3; d++) {
-    const date = addDays(TODAY, -d);
+    const date = addDays(serviceToday(), -d);
     for (let k = 0; k < 8; k++) {
       const a = artists[Math.floor(cheerRand() * 12)];
       cheerRecords.push({
@@ -210,8 +218,8 @@ export function createSeed(): DB {
       id: `ch-flag-${k}`,
       userId: `u90${k}`,
       artistId: "a013",
-      date: TODAY,
-      createdAt: `${TODAY}T00:0${k}:1${k}.000Z`,
+      date: serviceToday(),
+      createdAt: `${serviceToday()}T00:0${k}:1${k}.000Z`,
       valid: true,
       flag: "동일 기기에서 1분 내 다계정 응원",
     });
@@ -219,7 +227,7 @@ export function createSeed(): DB {
 
   // 데이터 수집 이력 (최근 7일)
   const collectionRuns: CollectionRun[] = Array.from({ length: 7 }, (_, d) => {
-    const date = addDays(TODAY, -d);
+    const date = addDays(serviceToday(), -d);
     const failures =
       d === 0
         ? [{ artistId: "a017", platform: "spotify" as const, reason: "API 응답 시간 초과 (429 Too Many Requests)", resolved: false }]
@@ -279,6 +287,9 @@ export function createSeed(): DB {
     cheerBase,
     cheerRecords,
     users: [],
+    metricSnapshots: [],
+    melonCharts: [],
+    settings: { metricsSource: "mock" },
     scoreConfig: {
       basis: structuredClone(DEFAULT_FULL_SCORE_BASIS),
       history: [

@@ -2,13 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { LAST_MONTH, TODAY, nowIso } from "@indie/core/constants";
+import { lastServiceMonth, serviceToday, nowIso } from "@indie/core/constants";
 import { getChart } from "@indie/core/data";
 import { fetchSpotifyArtistProfile } from "@indie/core/artist-image";
 import { READ_ONLY_MESSAGE, isDemoMode } from "@indie/core/data-mode";
 import { mutate, newId, readDb } from "@indie/core/db";
 import type { DB } from "@indie/core/seed";
-import type { ArtistStatus, Period } from "@indie/core/types";
+import type { ArtistStatus, MetricSnapshot, MetricsSource, Period } from "@indie/core/types";
+import { collectMelonChartNow } from "@/lib/collect";
+import { METRIC_FIELDS, parseCount, readMetricsCsv, type MetricKey } from "@/lib/metrics-csv";
 import {
   isHttpUrl,
   parseAppleMusicArtistId,
@@ -280,7 +282,7 @@ export async function createConcert(_: ConcertFormState, fd: FormData): Promise<
   if (!db.artists.some((a) => a.id === v.artistId)) errors.artistId = "아티스트를 선택하세요.";
   if (!v.title) errors.title = "공연명을 입력하세요.";
   if (!v.date) errors.date = "날짜를 선택하세요.";
-  else if (v.date < TODAY) errors.date = "지난 공연은 등록할 수 없어요.";
+  else if (v.date < serviceToday()) errors.date = "지난 공연은 등록할 수 없어요.";
   if (!v.venue) errors.venue = "공연장을 입력하세요.";
   if (!isHttpUrl(v.url)) errors.url = "URL 형식을 확인하세요.";
   const norm = (s: string) => s.replace(/\s/g, "").toLowerCase();
@@ -363,7 +365,7 @@ export async function runCollection() {
     const now = nowIso();
     db.collectionRuns.unshift({
       id: newId("run"),
-      date: TODAY,
+      date: serviceToday(),
       startedAt: now,
       finishedAt: now,
       status: "success",
@@ -427,8 +429,105 @@ export async function confirmMonthlyTop3() {
     .filter((e) => e.rank <= 3)
     .map((e) => ({ artistId: e.artist.id, rank: e.rank, total: Math.round(e.score.total * 100) / 100 }));
   mutate((db) => {
-    db.monthlyTop3 = db.monthlyTop3.filter((r) => r.month !== LAST_MONTH);
-    db.monthlyTop3.unshift({ month: LAST_MONTH, confirmedAt: nowIso(), entries });
+    db.monthlyTop3 = db.monthlyTop3.filter((r) => r.month !== lastServiceMonth());
+    db.monthlyTop3.unshift({ month: lastServiceMonth(), confirmedAt: nowIso(), entries });
   });
   refresh();
+}
+
+/* ---------------- 실제 수치: 멜론 차트 수집 · 수치 입력 ---------------- */
+
+export type CollectState = { ok?: boolean; message?: string };
+
+/** 멜론 인디 일간 차트 수집 (수동 실행) */
+export async function collectMelonChart(): Promise<CollectState> {
+  const r = await collectMelonChartNow({ manual: true });
+  refresh();
+  return r;
+}
+
+/** 차트 수치 출처 전환 (샘플 수치 ↔ 실제 수치) */
+export async function setMetricsSource(source: MetricsSource) {
+  // 데모 모드는 읽기 전용
+  if (isDemoMode()) return;
+  mutate((db) => {
+    db.settings.metricsSource = source;
+  });
+  refresh();
+}
+
+/** 한 아티스트·한 날짜의 수치를 합쳐 저장. undefined는 그대로 두고, null은 지운다 */
+function upsertSnapshot(
+  db: DB,
+  artistId: string,
+  date: string,
+  values: Partial<Record<MetricKey, number | null>>,
+  source: MetricSnapshot["source"],
+) {
+  let snap = db.metricSnapshots.find((s) => s.artistId === artistId && s.date === date);
+  if (!snap) {
+    snap = { artistId, date, source, updatedAt: nowIso() };
+    db.metricSnapshots.push(snap);
+  }
+  for (const [k, v] of Object.entries(values) as [MetricKey, number | null | undefined][]) {
+    if (v === undefined) continue;
+    if (v === null) delete snap[k];
+    else snap[k] = v;
+  }
+  snap.source = source;
+  snap.updatedAt = nowIso();
+  // 모든 값이 비면 기록 자체를 지운다
+  if (METRIC_FIELDS.every((f) => snap![f.key] == null)) db.metricSnapshots = db.metricSnapshots.filter((s) => s !== snap);
+}
+
+export type MetricsFormState = { saved?: number; errors?: string[] };
+
+/** 관리자 화면 표에서 입력한 수치 저장. 빈 칸은 미입력(지움) */
+export async function saveMetrics(_: MetricsFormState, fd: FormData): Promise<MetricsFormState> {
+  if (isDemoMode()) return { errors: [READ_ONLY_MESSAGE] };
+  const date = String(fd.get("date") ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { errors: ["기준일을 선택해 주세요."] };
+  if (date > serviceToday()) return { errors: ["미래 날짜에는 입력할 수 없어요."] };
+
+  const db = readDb();
+  const errors: string[] = [];
+  const updates: { artistId: string; values: Partial<Record<MetricKey, number | null>> }[] = [];
+  for (const a of db.artists.filter((x) => x.status === "active")) {
+    const values: Partial<Record<MetricKey, number | null>> = {};
+    for (const f of METRIC_FIELDS) {
+      const raw = fd.get(`${a.id}.${f.key}`);
+      if (raw === null) continue; // 화면에 없던 칸
+      const n = parseCount(String(raw));
+      if (n === null) errors.push(`${a.name} · ${f.label}: 숫자만 입력해 주세요.`);
+      else values[f.key] = n ?? null;
+    }
+    updates.push({ artistId: a.id, values });
+  }
+  if (errors.length) return { errors };
+
+  mutate((db) => updates.forEach((u) => upsertSnapshot(db, u.artistId, date, u.values, "manual")));
+  refresh();
+  return { saved: updates.filter((u) => Object.values(u.values).some((v) => v != null)).length };
+}
+
+export type ImportState = { imported?: number; errors?: string[] };
+
+/** CSV 업로드로 수치 저장. 빈 칸은 기존 값 유지 */
+export async function importMetricsCsv(_: ImportState, fd: FormData): Promise<ImportState> {
+  if (isDemoMode()) return { errors: [READ_ONLY_MESSAGE] };
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { errors: ["CSV 파일을 선택해 주세요."] };
+  if (file.size > 1024 * 1024) return { errors: ["CSV 파일은 1MB 이하만 올릴 수 있어요."] };
+  const fallbackDate = String(fd.get("date") ?? serviceToday());
+
+  const { rows, errors } = readMetricsCsv(await file.text(), readDb().artists, fallbackDate);
+  const future = rows.filter((r) => r.date > serviceToday());
+  if (future.length) errors.push(...future.map((r) => `${r.line}번째 줄: 미래 날짜에는 입력할 수 없어요.`));
+  // 한 줄이라도 틀리면 아무것도 저장하지 않는다 (일부만 반영되는 혼란 방지)
+  if (errors.length) return { errors };
+  if (rows.length === 0) return { errors: ["저장할 수치가 없어요."] };
+
+  mutate((db) => rows.forEach((r) => upsertSnapshot(db, r.artistId, r.date, r.values, "csv")));
+  refresh();
+  return { imported: rows.length };
 }

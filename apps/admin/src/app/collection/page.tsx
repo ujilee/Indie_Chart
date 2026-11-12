@@ -1,10 +1,12 @@
 import { ActionForm } from "@/components/ActionForm";
 import Link from "next/link";
 import { AdminHeader, Card, EmptyRow, Pill, Stat, Table, btn, fmtDateTime } from "@/components/ui";
-import { getArtist } from "@indie/core/data";
+import { getArtist, getMetricsSource } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
-import { collectArtist, retryFailure, runCollection } from "../actions";
+import { MELON_INDIE_DAILY_URL } from "@indie/core/melon";
+import { collectArtist, retryFailure, runCollection, setMetricsSource } from "../actions";
 import ImageSyncButton from "../ImageSyncButton";
+import MelonCollectButton from "./MelonCollectButton";
 
 export default function AdminCollection() {
   const db = readDb();
@@ -12,6 +14,20 @@ export default function AdminCollection() {
   const latest = runs[0];
   const open = latest?.failures.filter((f) => !f.resolved) ?? [];
   const pending = db.artists.filter((a) => a.status === "active" && !a.collected);
+  const source = getMetricsSource(db);
+  const melon = [...db.melonCharts].sort((a, b) => b.chartDate.localeCompare(a.chartDate))[0];
+  const registered = new Map(db.artists.filter((a) => a.platformIds.melon).map((a) => [a.platformIds.melon!, a] as const));
+  // 차트에 올랐지만 아직 등록되지 않은 아티스트 (제보·등록 후보)
+  const unregistered = new Map<string, { name: string; best: number }>();
+  for (const e of melon?.entries ?? []) {
+    for (const a of e.artists) {
+      if (registered.has(a.melonId)) continue;
+      const prev = unregistered.get(a.melonId);
+      if (!prev || e.rank < prev.best) unregistered.set(a.melonId, { name: a.name, best: e.rank });
+    }
+  }
+  const charted = new Set((melon?.entries ?? []).flatMap((e) => e.artists.map((a) => a.melonId)).filter((id) => registered.has(id)));
+  const noMelonId = db.artists.filter((a) => a.status === "active" && !a.platformIds.melon);
 
   return (
     <>
@@ -19,11 +35,84 @@ export default function AdminCollection() {
         title="데이터 수집 관리"
         desc="매일 오전 1시(KST) 멜론(곡 순위·곡별 좋아요·팬맺기)과 Spotify(팔로워)를 수집해 일간 스냅샷으로 저장해요."
         actions={
-          <ActionForm action={runCollection}>
-            <button className={btn.primary}>지금 재수집 실행</button>
-          </ActionForm>
+          source === "mock" ? (
+            <ActionForm action={runCollection}>
+              <button className={btn.outline}>샘플 수집 실행</button>
+            </ActionForm>
+          ) : undefined
         }
       />
+
+      <Card title="차트 수치 출처" className="mb-4">
+        <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 text-sm">
+          <div className="space-y-1">
+            <p>
+              지금 차트는{" "}
+              {source === "live" ? <Pill tone="accent">실제 수치</Pill> : <Pill tone="line">샘플 수치</Pill>}로 계산하고 있어요.
+            </p>
+            <p className="text-xs text-subtle">
+              실제 수치: 멜론 인디 차트 수집 결과(곡 순위) + 수치 입력 메뉴에서 넣은 팬·좋아요·팔로워. 입력이 없는 항목은 미수집(0점)으로 계산돼요.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <ActionForm action={setMetricsSource.bind(null, "mock")}>
+              <button className={source === "mock" ? btn.primary : btn.outline} disabled={source === "mock"}>
+                샘플 수치
+              </button>
+            </ActionForm>
+            <ActionForm action={setMetricsSource.bind(null, "live")}>
+              <button className={source === "live" ? btn.primary : btn.outline} disabled={source === "live"}>
+                실제 수치
+              </button>
+            </ActionForm>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid xl:grid-cols-[1fr_380px] gap-4 mb-4">
+        <Card
+          title="멜론 인디 일간 차트"
+          actions={
+            <a href={MELON_INDIE_DAILY_URL} target="_blank" rel="noreferrer" className="text-xs text-muted hover:text-fg">
+              멜론에서 보기 ↗
+            </a>
+          }
+        >
+          <div className="p-5 space-y-4 text-sm">
+            <MelonCollectButton />
+            {melon ? (
+              <p>
+                최근 수집: <b>{melon.chartDate}</b> 차트 · {fmtDateTime(melon.collectedAt)} · {melon.entries.length}곡 · 등록 아티스트{" "}
+                <b className="tabular-nums">{charted.size}</b>팀 차트인
+              </p>
+            ) : (
+              <p className="text-muted">아직 수집한 차트가 없어요.</p>
+            )}
+            <p className="text-xs text-subtle leading-relaxed">
+              차트 페이지 1개만 요청하고, 마지막 수집 후 10분 안에는 다시 요청하지 않아요. 아티스트는 멜론 아티스트 ID로 연결되니, 등록 아티스트에 멜론 ID를 꼭 넣어 주세요
+              {noMelonId.length > 0 && <> (현재 {noMelonId.length}팀 없음)</>}.
+            </p>
+          </div>
+        </Card>
+        <Card title={`차트인 · 미등록 아티스트 (${unregistered.size})`}>
+          <ul className="divide-y divide-line text-sm max-h-72 overflow-auto">
+            {unregistered.size === 0 && <li className="px-5 py-6 text-center text-muted">{melon ? "모두 등록돼 있어요." : "수집 후 표시돼요."}</li>}
+            {[...unregistered]
+              .sort((a, b) => a[1].best - b[1].best)
+              .map(([id, a]) => (
+                <li key={id} className="flex items-center justify-between gap-2 px-5 py-2">
+                  <span className="truncate">
+                    <b className="tabular-nums mr-2 text-subtle">{a.best}위</b>
+                    {a.name}
+                  </span>
+                  <a href={`https://www.melon.com/artist/detail.htm?artistId=${id}`} target="_blank" rel="noreferrer" className="shrink-0 font-mono text-xs text-muted underline">
+                    {id}
+                  </a>
+                </li>
+              ))}
+          </ul>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
         <Stat label="마지막 수집" value={latest ? fmtDateTime(latest.finishedAt).slice(5) : "-"} sub={latest?.manual ? "수동 실행" : "정기 수집"} tone="dark" />
@@ -98,6 +187,7 @@ export default function AdminCollection() {
               <td className="font-semibold tabular-nums">
                 {r.date}
                 {r.manual && <span className="ml-2 text-xs text-muted">수동</span>}
+                {r.kind === "melon-chart" && <span className="ml-2 text-xs text-muted">멜론 차트</span>}
               </td>
               <td className="text-muted tabular-nums">{fmtDateTime(r.startedAt)}</td>
               <td className="text-muted tabular-nums">{fmtDateTime(r.finishedAt)}</td>
@@ -111,7 +201,10 @@ export default function AdminCollection() {
                       </div>
                     ))}
               </td>
-              <td>{r.status === "success" ? <Pill tone="dark">정상</Pill> : <Pill tone="accent">일부 실패</Pill>}</td>
+              <td>
+                {r.status === "success" ? <Pill tone="dark">정상</Pill> : r.status === "failed" ? <Pill tone="accent">실패</Pill> : <Pill tone="accent">일부 실패</Pill>}
+                {r.kind === "melon-chart" && <p className="mt-1 text-xs text-muted max-w-64">{r.error ?? r.note}</p>}
+              </td>
             </tr>
           ))}
         </Table>

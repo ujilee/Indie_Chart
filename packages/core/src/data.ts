@@ -1,8 +1,11 @@
 /**
  * 서버 전용 조회 함수. 저장소(db.ts)의 데이터를 바탕으로 차트를 계산한다.
- * 외부 플랫폼 수치는 아직 수집기가 없으므로 아티스트별 시드로 목업 생성.
+ * - mock: 외부 플랫폼 수치를 아티스트별 시드로 만든 샘플 수치
+ * - live: 멜론 인디 차트 수집 결과 + 관리자가 입력한 수치 (live.ts)
  */
-import { CURRENT_MONTH, LAST_MONTH, TODAY, monthLabel } from "./constants";
+import { serviceMonth, lastServiceMonth, serviceToday, monthLabel } from "./constants";
+import { isDemoMode } from "./data-mode";
+import { latestValue, liveChartSongs, liveMetrics, periodWindow, windowHasData } from "./live";
 import { onSeed, readDb } from "./db";
 import { computeScore, isConcertValid, rankWithTies, songRankPoints } from "./score";
 import { mulberry32, popularityOf, type DB } from "./seed";
@@ -16,12 +19,18 @@ import type {
   PeriodMetrics,
 } from "./types";
 
-export const PERIOD_META: Record<Period, { scale: number; label: string; prevLabel: string }> = {
-  daily: { scale: 1, label: "2026.11.10", prevLabel: "2026.11.09" },
-  weekly: { scale: 7, label: "2026.11.02 – 11.08", prevLabel: "2026.10.26 – 11.01" },
-  monthly: { scale: 30, label: "2026.10", prevLabel: "2026.09" },
-  yearly: { scale: 365, label: "2025", prevLabel: "2024" },
-};
+/** 목업 수치 생성 배율 (기간 일수) */
+const MOCK_SCALE: Record<Period, number> = { daily: 1, weekly: 7, monthly: 30, yearly: 365 };
+
+/** 기간 라벨 (집계 기간, 비교 기간) */
+export function periodLabels(period: Period) {
+  return { label: periodWindow(period, 0).label, prevLabel: periodWindow(period, -1).label };
+}
+
+/** 차트 수치 출처. 데모 모드는 항상 샘플 수치 */
+export function getMetricsSource(db: DB = readDb()) {
+  return isDemoMode() ? "mock" : db.settings.metricsSource;
+}
 
 /** 직전 기간 차트에 없던 신규 진입 아티스트 (목업) */
 const NEW_ARTISTS: Record<Period, string[]> = {
@@ -51,7 +60,7 @@ export function getArtistConcerts(artistId: string, db: DB = readDb()) {
   return db.concerts.filter((c) => c.artistId === artistId).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function countValidConcerts(artistId: string, db: DB = readDb(), asOf = TODAY) {
+export function countValidConcerts(artistId: string, db: DB = readDb(), asOf = serviceToday()) {
   return db.concerts.filter((c) => c.artistId === artistId && isConcertValid(c, asOf)).length;
 }
 
@@ -64,7 +73,7 @@ export function getOpenFailures(db: DB = readDb()) {
 /* ---------------- 차트 ---------------- */
 
 function generateMetrics(db: DB, period: Period, seed: number, artists: Artist[]): PeriodMetrics[] {
-  const { scale } = PERIOD_META[period];
+  const scale = MOCK_SCALE[period];
   const failures = period === "daily" ? getOpenFailures(db) : [];
   return artists.map((artist) => {
     const rand = mulberry32(seed * 1000 + artist.seq);
@@ -84,6 +93,8 @@ function generateMetrics(db: DB, period: Period, seed: number, artists: Artist[]
     return {
       artistId: artist.id,
       songRankPoints: failed("melon") ? 0 : songPts,
+      bestSongRank: failed("melon") || ranks.length === 0 ? null : Math.min(...ranks),
+      chartSongs: failed("melon") ? 0 : ranks.length,
       likeGain: failed("melon") ? null : likeGain,
       fanGain: failed("melon") ? null : fanGain,
       followerGain: failed("spotify") ? null : followerGain,
@@ -107,9 +118,22 @@ function buildRanking(db: DB, period: Period, metrics: PeriodMetrics[]) {
 export function getChart(period: Period, db: DB = readDb()): Chart {
   // 차트 대상: 활성 + 최초 데이터 수집 완료
   const eligible = db.artists.filter((a) => a.status === "active" && a.collected);
-  const prevEligible = eligible.filter((a) => a.seq <= 30 && !NEW_ARTISTS[period].includes(a.id));
-  const current = buildRanking(db, period, generateMetrics(db, period, SEED_BASE[period], eligible));
-  const prev = buildRanking(db, period, generateMetrics(db, period, SEED_BASE[period] + 100, prevEligible));
+  const { label } = periodLabels(period);
+  const live = getMetricsSource(db) === "live";
+
+  let current, prev;
+  let comparable = true;
+  if (live) {
+    current = buildRanking(db, period, liveMetrics(db, eligible, periodWindow(period, 0)));
+    const prevWindow = periodWindow(period, -1);
+    // 비교 기간에 수집·입력된 데이터가 없으면 순위 변동을 표시하지 않는다
+    comparable = windowHasData(db, prevWindow);
+    prev = comparable ? buildRanking(db, period, liveMetrics(db, eligible, prevWindow)) : [];
+  } else {
+    const prevEligible = eligible.filter((a) => a.seq <= 30 && !NEW_ARTISTS[period].includes(a.id));
+    current = buildRanking(db, period, generateMetrics(db, period, SEED_BASE[period], eligible));
+    prev = buildRanking(db, period, generateMetrics(db, period, SEED_BASE[period] + 100, prevEligible));
+  }
   const prevRankMap = new Map(prev.map((p) => [p.item.artist.id, p.rank]));
   const entries: ChartEntry[] = current.map(({ item, rank }) => ({
     rank,
@@ -118,14 +142,27 @@ export function getChart(period: Period, db: DB = readDb()): Chart {
     metrics: item.m,
     score: item.score,
   }));
-  return { period, label: PERIOD_META[period].label, updatedAt: "2026.11.11 01:00", entries };
+  return { period, label, updatedAt: chartUpdatedAt(db, live), comparable, entries };
+}
+
+/** 마지막 수집 시각 (KST, 화면 표기용) */
+function chartUpdatedAt(db: DB, live: boolean) {
+  if (!live) return `${serviceToday().replaceAll("-", ".")} 01:00`;
+  const times = [
+    ...db.melonCharts.map((c) => c.collectedAt),
+    ...db.metricSnapshots.map((m) => m.updatedAt),
+  ].sort();
+  const last = times.at(-1);
+  if (!last) return "아직 수집 전";
+  const kst = new Date(new Date(last).getTime() + 9 * 3600_000).toISOString();
+  return `${kst.slice(0, 10).replaceAll("-", ".")} ${kst.slice(11, 16)}`;
 }
 
 /** 시드 시점에 직전 완료 월(10월) 월간 TOP 3를 확정해 둔다 */
 onSeed((db) => {
   const chart = getChart("monthly", db);
   db.monthlyTop3.unshift({
-    month: LAST_MONTH,
+    month: lastServiceMonth(),
     confirmedAt: "2026-11-01T17:00:00.000Z",
     entries: chart.entries
       .filter((e) => e.rank <= 3)
@@ -148,8 +185,8 @@ export function getMonthlyTop3(db: DB = readDb()) {
 /* ---------------- 응원 ---------------- */
 
 /** 이번 달 아티스트별 누적 유효 응원 횟수 */
-export function getMonthlyCheerCounts(db: DB = readDb(), month = CURRENT_MONTH) {
-  const counts: Record<string, number> = month === CURRENT_MONTH ? { ...db.cheerBase } : {};
+export function getMonthlyCheerCounts(db: DB = readDb(), month = serviceMonth()) {
+  const counts: Record<string, number> = month === serviceMonth() ? { ...db.cheerBase } : {};
   for (const r of db.cheerRecords) {
     if (r.valid && r.date.startsWith(month)) counts[r.artistId] = (counts[r.artistId] ?? 0) + 1;
   }
@@ -168,7 +205,7 @@ export function rankCheers(counts: Record<string, number>, artists: Artist[]): C
 export function getCheerData(db: DB = readDb()) {
   const last = [...db.cheerTop3].sort((a, b) => b.month.localeCompare(a.month))[0];
   return {
-    month: monthLabel(CURRENT_MONTH),
+    month: monthLabel(serviceMonth()),
     lastMonth: last ? monthLabel(last.month) : null,
     current: getMonthlyCheerCounts(db),
     lastMonthTop3: last
@@ -194,6 +231,19 @@ export function getArtistSnapshot(artistId: string, db: DB = readDb()): ArtistSn
       spotifyFollowers: null,
       spotifyFollowersGain: null,
       melonChartSongs: [],
+    };
+  }
+  if (getMetricsSource(db) === "live") {
+    const today = serviceToday();
+    return {
+      artistId,
+      melonLikes: latestValue(db, artistId, "melonLikes", today),
+      melonLikesGain: daily?.metrics.likeGain ?? null,
+      melonFans: latestValue(db, artistId, "melonFans", today),
+      melonFansGain: daily?.metrics.fanGain ?? null,
+      spotifyFollowers: latestValue(db, artistId, "spotifyFollowers", today),
+      spotifyFollowersGain: daily?.metrics.followerGain ?? null,
+      melonChartSongs: liveChartSongs(db, artist),
     };
   }
   const p = popularityOf(artist.seq);
@@ -223,7 +273,8 @@ export function getArtistSnapshot(artistId: string, db: DB = readDb()): ArtistSn
 
 export function getArtistRanks(artistId: string, db: DB = readDb()) {
   return (["daily", "weekly", "monthly", "yearly"] as Period[]).map((period) => {
-    const e = getChart(period, db).entries.find((x) => x.artist.id === artistId);
-    return { period, rank: e?.rank ?? null, prevRank: e?.prevRank ?? null };
+    const chart = getChart(period, db);
+    const e = chart.entries.find((x) => x.artist.id === artistId);
+    return { period, rank: e?.rank ?? null, prevRank: e?.prevRank ?? null, comparable: chart.comparable };
   });
 }

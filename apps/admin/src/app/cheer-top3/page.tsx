@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AdminHeader, Card, Pill, Table, fmtDateTime } from "@/components/ui";
 import { Avatar } from "@indie/core/ui";
-import { CURRENT_MONTH, monthLabel } from "@indie/core/constants";
+import { serviceMonth, monthLabel } from "@indie/core/constants";
 import { getActiveArtists, getArtist, getMonthlyCheerCounts, rankCheers } from "@indie/core/data";
 import { readDb } from "@indie/core/db";
 
@@ -17,7 +17,7 @@ export default function AdminCheerTop3() {
         desc="실제 월간 누적 유효 응원 횟수만으로 순위를 매겨요 (점수 환산 없음). 월 종료 후 유효 응원 검증을 거쳐 확정돼요."
       />
       <div className="grid xl:grid-cols-2 gap-4 items-start">
-        <Card title={`${monthLabel(CURRENT_MONTH)} 진행 중 순위`} actions={<Pill tone="warn">집계 중</Pill>}>
+        <Card title={`${monthLabel(serviceMonth())} 진행 중 순위`} actions={<Pill tone="warn">집계 중</Pill>}>
           <Table head={["순위", "아티스트", "누적 응원", ""]} minWidth={420}>
             {ranking.slice(0, 15).map((e) => (
               <tr key={e.artist.id} className={e.rank <= 3 ? "" : "text-muted"}>
