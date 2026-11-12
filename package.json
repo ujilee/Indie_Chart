@@ -1,0 +1,15 @@
+{
+  "name": "indie-chart",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w @indie/web",
+    "dev:admin": "npm run dev -w @indie/admin",
+    "build": "npm run build -w @indie/web -w @indie/admin",
+    "lint": "npm run lint -w @indie/web -w @indie/admin",
+    "typecheck": "npm run typecheck -w @indie/web -w @indie/admin"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@indie/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "INDIE CHART 공통 코드: 타입, 점수 계산, 데이터 저장소·조회, 인증 유틸, 공통 UI와 디자인 토큰",
+  "type": "module",
+  "exports": {
+    "./types": "./src/types.ts",
+    "./score": "./src/score.ts",
+    "./constants": "./src/constants.ts",
+    "./validate": "./src/validate.ts",
+    "./seed": "./src/seed.ts",
+    "./db": "./src/db.ts",
+    "./data": "./src/data.ts",
+    "./data-mode": "./src/data-mode.ts",
+    "./data-mode-context": "./src/data-mode-context.tsx",
+    "./artist-image": "./src/artist-image.ts",
+    "./auth": "./src/auth.ts",
+    "./ui": "./src/ui.tsx",
+    "./theme.css": "./src/styles/theme.css"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  }
+}
