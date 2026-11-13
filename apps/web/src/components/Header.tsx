@@ -10,7 +10,7 @@ const NAV = [
   { href: "/", label: "차트" },
   { href: "/cheer", label: "응원" },
   { href: "/report/artist", label: "제보" },
-  { href: "/guide", label: "가이드" },
+  { href: "/ranking", label: "순위 산정 기준" },
 ];
 
 export default function Header() {
@@ -87,7 +87,7 @@ export default function Header() {
           <Link
             key={n.href}
             href={n.href}
-            className={`flex-1 text-center py-2.5 ${isActive(n.href) ? "font-bold text-fg border-b-2 border-fg" : "text-muted"}`}
+            className={`flex-auto px-2 text-center py-2.5 whitespace-nowrap ${isActive(n.href) ? "font-bold text-fg border-b-2 border-fg" : "text-muted"}`}
           >
             {n.label}
           </Link>

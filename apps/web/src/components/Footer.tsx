@@ -13,7 +13,7 @@ export default function Footer() {
           데이터는 매일 오전 1시(KST)에 수집되며, 플랫폼 사정에 따라 갱신 시간이 달라질 수 있습니다.
         </p>
         <div className="mt-4 flex gap-4">
-          <Link href="/guide" className="hover:text-fg">순위 산정 기준</Link>
+          <Link href="/ranking" className="hover:text-fg">순위 산정 기준</Link>
           <Link href="/report/artist" className="hover:text-fg">아티스트 제보</Link>
           <span>이용약관</span>
           <span>개인정보처리방침</span>

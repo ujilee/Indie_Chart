@@ -106,7 +106,7 @@ async function melonGet(pathAndQuery: string, artistId: string): Promise<string>
   } catch (e) {
     throw new MelonCollectError(`멜론이 응답하지 않아요. 요청이 많아 일시적으로 막혔을 수 있어요. (${e instanceof Error ? e.message : "네트워크 오류"})`, true);
   }
-  if (!res.ok) throw new MelonCollectError(`멜론이 요청을 거부했어요. (HTTP ${res.status})`, [403, 429, 503].includes(res.status));
+  if (!res.ok) throw new MelonCollectError(`멜론이 요청을 거부했어요. (HTTP ${res.status})`, [403, 406, 429, 503].includes(res.status));
   return res.text();
 }
 
